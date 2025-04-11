@@ -15,9 +15,9 @@
 
     <dependencies>
         <dependency>
-            <groupId>org.bytebuddy</groupId>
+            <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
-            <version>1.14.12</version>
+            <version>LATEST</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
