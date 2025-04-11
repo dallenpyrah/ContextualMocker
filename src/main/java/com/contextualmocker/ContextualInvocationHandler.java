@@ -2,6 +2,7 @@ package com.contextualmocker;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
+import java.util.List;
 
 class ContextualInvocationHandler implements InvocationHandler {
 
@@ -27,33 +28,38 @@ class ContextualInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        // Always record the last invocation in ThreadLocals for potential stubbing
         lastInvokedMethod.set(method);
         lastInvokedArgs.set(args != null ? args.clone() : new Object[0]);
-        // Do not return default value immediately; check if this is a stubbing context or actual invocation
 
         if (method.getDeclaringClass() == Object.class) {
             return handleObjectMethod(proxy, method, args);
         }
 
         ContextID contextId = ContextHolder.getContext();
-        // Only record invocation if not part of stubbing process or if context is explicitly set for testing
-        if (!stubbingInProgress.get() || ContextHolder.getContext() != null) {
-            InvocationRecord record = new InvocationRecord(proxy, method, args, contextId, stubbingInProgress.get());
+        // Make a copy of the arguments to avoid modification issues
+        Object[] safeArgs = args != null ? args.clone() : new Object[0];
+        
+        if (!stubbingInProgress.get() || contextId != null) {
+            // Save any matchers in the ThreadLocal context that were used to invoke this method
+            List<ArgumentMatcher<?>> matchers = MatcherContext.consumeMatchers();
+            InvocationRecord record = new InvocationRecord(proxy, method, safeArgs, contextId, stubbingInProgress.get(), matchers);
             MockRegistry.recordInvocation(record);
         }
 
+        // Retrieve the current state and find a matching stubbing rule
         Object currentState = MockRegistry.getState(proxy, contextId);
-        StubbingRule rule = MockRegistry.findStubbingRule(proxy, contextId, method, args != null ? args : new Object[0], currentState);
+        StubbingRule rule = MockRegistry.findStubbingRule(proxy, contextId, method, safeArgs, currentState);
 
         if (rule != null) {
-            Object result = rule.apply(contextId, proxy, method, args);
+            // Apply the rule to get the result, and update state if needed
+            Object result = rule.apply(contextId, proxy, method, safeArgs);
             Object nextState = rule.getNextState();
             if (nextState != null) {
                 MockRegistry.setState(proxy, contextId, nextState);
             }
             return result;
         } else {
+            // No matching rule, return default value
             return getDefaultValue(method.getReturnType());
         }
     }

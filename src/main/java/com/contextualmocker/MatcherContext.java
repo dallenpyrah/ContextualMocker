@@ -13,6 +13,7 @@ final class MatcherContext {
 
     static List<ArgumentMatcher<?>> consumeMatchers() {
         List<ArgumentMatcher<?>> current = new ArrayList<>(matchers.get());
+        System.out.println("[MatcherContext] Thread: " + Thread.currentThread().getName() + " consuming matchers: " + current);
         matchers.get().clear();
         return current;
     }

@@ -65,6 +65,7 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
             this.contextId = contextId;
             this.method = Objects.requireNonNull(method, "Method cannot be null in OngoingStubbing");
             this.args = args;
+            System.out.println("[DEBUG] Creating OngoingContextualStubbingImpl for method: " + method.getName() + " with args: " + java.util.Arrays.toString(args));
         }
 
 
@@ -83,39 +84,72 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenReturn(R value) {
             var matchers = MatcherContext.consumeMatchers();
+            System.out.println("[DEBUG] thenReturn matchers: " + matchers + " for " + method.getName());
+            
             StubbingRule.Builder builder = new StubbingRule.Builder(method)
-                .expectedArguments(args)
-                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
-                .returnValue(value)
+                .expectedArguments(args);
+                
+            // Only set argument matchers if we have any
+            if (!matchers.isEmpty()) {
+                System.out.println("[DEBUG] Using argument matchers: " + matchers);
+                builder.argumentMatchers(matchers.toArray(new ArgumentMatcher<?>[0]));
+            }
+            
+            builder.returnValue(value)
                 .requiredState(requiredState)
                 .nextState(nextState);
-            registerRule(builder.build());
+                
+            StubbingRule rule = builder.build();
+            System.out.println("[DEBUG] Created stubbing rule: " + rule);
+            registerRule(rule);
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenThrow(Throwable throwable) {
             var matchers = MatcherContext.consumeMatchers();
+            System.out.println("[DEBUG] thenThrow matchers: " + matchers + " for " + method.getName());
+            
             StubbingRule.Builder builder = new StubbingRule.Builder(method)
-                .expectedArguments(args)
-                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
-                .throwable(throwable)
+                .expectedArguments(args);
+                
+            // Only set argument matchers if we have any
+            if (!matchers.isEmpty()) {
+                System.out.println("[DEBUG] Using argument matchers: " + matchers);
+                builder.argumentMatchers(matchers.toArray(new ArgumentMatcher<?>[0]));
+            }
+            
+            builder.throwable(throwable)
                 .requiredState(requiredState)
                 .nextState(nextState);
-            registerRule(builder.build());
+                
+            StubbingRule rule = builder.build();
+            System.out.println("[DEBUG] Created stubbing rule: " + rule);
+            registerRule(rule);
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenAnswer(ContextualAnswer<R> answer) {
             var matchers = MatcherContext.consumeMatchers();
+            System.out.println("[DEBUG] thenAnswer matchers: " + matchers + " for " + method.getName());
+            
             StubbingRule.Builder builder = new StubbingRule.Builder(method)
-                .expectedArguments(args)
-                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
-                .answer(answer)
+                .expectedArguments(args);
+                
+            // Only set argument matchers if we have any
+            if (!matchers.isEmpty()) {
+                System.out.println("[DEBUG] Using argument matchers: " + matchers);
+                builder.argumentMatchers(matchers.toArray(new ArgumentMatcher<?>[0]));
+            }
+            
+            builder.answer(answer)
                 .requiredState(requiredState)
                 .nextState(nextState);
-            registerRule(builder.build());
+                
+            StubbingRule rule = builder.build();
+            System.out.println("[DEBUG] Created stubbing rule: " + rule);
+            registerRule(rule);
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 

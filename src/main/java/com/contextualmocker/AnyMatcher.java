@@ -5,4 +5,9 @@ class AnyMatcher<T> implements ArgumentMatcher<T> {
     public boolean matches(Object argument) {
         return true;
     }
+    
+    @Override
+    public String toString() {
+        return "AnyMatcher";
+    }
 }

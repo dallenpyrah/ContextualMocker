@@ -4,6 +4,7 @@ import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public final class InvocationRecord {
@@ -14,13 +15,15 @@ public final class InvocationRecord {
     private final Instant timestamp;
     private final long threadId;
     private final boolean stubbing;
+    private final List<ArgumentMatcher<?>> matchers;
 
     public InvocationRecord(
             Object mock,
             Method method,
             Object[] arguments,
             ContextID contextId,
-            boolean stubbing) {
+            boolean stubbing,
+            List<ArgumentMatcher<?>> matchers) {
         this.mockRef = new WeakReference<>(Objects.requireNonNull(mock, "Mock cannot be null"));
         this.method = Objects.requireNonNull(method, "Method cannot be null");
         this.arguments = arguments == null ? new Object[0] : arguments.clone();
@@ -28,6 +31,17 @@ public final class InvocationRecord {
         this.timestamp = Instant.now();
         this.threadId = Thread.currentThread().getId();
         this.stubbing = stubbing;
+        this.matchers = matchers;
+    }
+
+    // Backward compatibility constructor
+    public InvocationRecord(
+            Object mock,
+            Method method,
+            Object[] arguments,
+            ContextID contextId,
+            boolean stubbing) {
+        this(mock, method, arguments, contextId, stubbing, null);
     }
 
     public WeakReference<Object> getMockRef() {
@@ -35,7 +49,7 @@ public final class InvocationRecord {
     }
 
     public Object getMock() {
-        return mockRef.get(); // May return null if GC'd
+        return mockRef.get();
     }
 
     public Method getMethod() {
@@ -43,7 +57,7 @@ public final class InvocationRecord {
     }
 
     public Object[] getArguments() {
-        return arguments.clone(); // Defensive copy
+        return arguments.clone();
     }
 
     public ContextID getContextId() {
@@ -58,6 +72,10 @@ public final class InvocationRecord {
         return threadId;
     }
 
+    public List<ArgumentMatcher<?>> getMatchers() {
+        return matchers;
+    }
+
     @Override
     public String toString() {
         Object mock = getMock();
@@ -70,6 +88,7 @@ public final class InvocationRecord {
                 ", contextId=" + contextId +
                 ", timestamp=" + timestamp +
                 ", threadId=" + threadId +
+                ", matchers=" + matchers +
                 '}';
     }
     

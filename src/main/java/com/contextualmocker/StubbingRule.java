@@ -97,11 +97,19 @@ class StubbingRule {
             return false;
         }
         if (argumentMatchers != null) {
-            if (invokedArguments == null || argumentMatchers.length != invokedArguments.length) return false;
+            if (invokedArguments == null) {
+                invokedArguments = new Object[0];
+            }
+            // If lengths don't match, we can't properly apply matchers
+            if (argumentMatchers.length != invokedArguments.length) return false;
+            
             for (int i = 0; i < argumentMatchers.length; i++) {
                 @SuppressWarnings("unchecked")
                 ArgumentMatcher<Object> matcher = (ArgumentMatcher<Object>) argumentMatchers[i];
-                if (!matcher.matches(invokedArguments[i])) return false;
+                // Ensure matcher is not null before trying to match
+                if (matcher != null && !matcher.matches(invokedArguments[i])) {
+                    return false;
+                }
             }
             return true;
         }
@@ -146,12 +154,19 @@ class StubbingRule {
         else if (hasReturnValue) action = "returnValue=" + returnValue;
         else action = "default value";
 
-        return "StubbingRule{" +
-               "method=" + method.getName() +
-               ", expectedArguments=" + Arrays.toString(expectedArguments) +
-               ", requiredState=" + requiredState +
-               ", nextState=" + nextState +
-               ", action=" + action +
-               '}';
+        StringBuilder sb = new StringBuilder("StubbingRule{");
+        sb.append("method=").append(method.getName());
+        sb.append(", expectedArguments=").append(Arrays.toString(expectedArguments));
+        
+        if (argumentMatchers != null) {
+            sb.append(", argumentMatchers=").append(Arrays.toString(argumentMatchers));
+        }
+        
+        sb.append(", requiredState=").append(requiredState);
+        sb.append(", nextState=").append(nextState);
+        sb.append(", action=").append(action);
+        sb.append("}");
+        
+        return sb.toString();
     }
 }
