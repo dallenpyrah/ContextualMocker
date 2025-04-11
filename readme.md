@@ -1,56 +1,35 @@
-Design Document: ContextualMocker - A Parallel-Safe, Context-Aware Java Mocking Framework1. IntroductionModern software applications, particularly those built on microservices or handling concurrent user requests, frequently rely on shared components, often implemented as singletons (e.g., service beans in dependency injection frameworks). Testing these applications effectively, especially under concurrent load, presents significant challenges for existing Java mocking frameworks.Current tools, while powerful for traditional unit testing, exhibit limitations when dealing with concurrent operations on shared mock instances. Issues such as race conditions during stubbing or verification lead to flaky, unreliable tests, undermining developer confidence.1 Furthermore, these frameworks lack native support for context-aware mocking – the ability to define mock behavior based on the specific operational context (e.g., user session, request ID, tenant ID) of a concurrent request interacting with a shared component. Developers resort to complex workarounds, often involving intricate Answer implementations or fragile parameter matching, which obscure test intent and are difficult to maintain.2This document outlines the design for ContextualMocker, a new, hypothetical open-source Java mocking framework engineered specifically to address these shortcomings. ContextualMocker aims to provide robust, parallel-safe mocking capabilities for shared instances, coupled with a first-class, intuitive API for defining context-aware behavior and verification. It targets developers building and testing concurrent Java applications who require reliable and expressive mocking tools for shared dependencies operating under varying contexts.2. The Core Problem: Concurrency and Context Limitations in Existing FrameworksThe fundamental motivation for ContextualMocker stems from two interconnected deficiencies in the current Java mocking landscape: the lack of reliable thread safety for concurrent operations on shared mocks, and the absence of native mechanisms for context-aware mocking.
+# ContextualMocker
 
-Concurrency Challenges with Shared Mocks:
+A parallel-safe, context-aware Java mocking framework for reliable testing of shared dependencies in concurrent applications.
 
-Mockito's Thread-Safety Issues: While Mockito is the de facto standard Java mocking framework 3, its design exhibits well-documented thread-safety problems when stubbing or verifying a shared mock instance concurrently from multiple threads.1 Although concurrent invocations on an already-stubbed mock are generally considered safe 5, the setup (stubbing) and assertion (verification) phases are problematic. Numerous issue reports and discussions highlight intermittent failures like UnfinishedStubbingException, WrongTypeOfReturnValue, or incorrect verification counts when tests involving shared mocks are run in parallel.7
-Underlying Cause: These issues appear rooted in Mockito's internal reliance on thread-local state to manage the process of stubbing and verification (e.g., tracking the "last invocation" before thenReturn or verify).8 When multiple threads attempt to stub or verify the same shared mock instance simultaneously, this thread-local mechanism leads to race conditions. One thread's operation can interfere with another's, corrupting Mockito's internal state.8
-Workarounds and Their Limits: Developers have attempted workarounds, such as external synchronization using locks around Mockito calls 7, avoiding shared mocks altogether by creating mocks per test or per thread (often using ThreadLocal) 11, or using Spring Boot's @MockBean(reset = MockReset.NONE).13 However, these solutions add significant complexity, boilerplate, or only address specific scenarios, failing to provide a general, framework-level guarantee of safety. Other frameworks like EasyMock and JMockit also face challenges or lack explicit support for robust parallel testing on shared mocks.15 Spock, while supporting parallel execution via the JUnit Platform 19, requires careful use of @ResourceLock for shared state and may have issues with shared spies.20
+## Overview
 
+ContextualMocker provides robust, thread-safe mocking for shared instances, with a fluent API for defining context-specific behavior and verification. It is designed for developers building and testing concurrent Java applications who need reliable and expressive mocking tools for shared dependencies operating under varying contexts.
 
+## Features
 
-The Need for Explicit Context-Awareness:
+- Parallel-safe stubbing and verification for shared mocks
+- Explicit context management (e.g., per user, request, or tenant)
+- Fluent, readable API inspired by Mockito and BDD patterns
+- Support for argument matchers and custom answers
+- Extensible architecture with SPIs for integration
+- Designed for performance and scalability
 
-Modern Application Complexity: Concurrent applications often process multiple independent operations simultaneously (e.g., handling web requests for different users, processing messages for various tenants). Shared components (singletons) involved in these operations frequently need to behave differently based on the context of the specific operation (e.g., return user-specific data based on userId, apply tenant-specific rules based on tenantId, correlate logs via requestId).21
-Limitations of Implicit Context: Existing mocking frameworks lack first-class support for defining mock behavior based on such application-level contexts. Developers are forced to simulate context-awareness indirectly. Common approaches include:
+## Quick Start
 
-Complex Answer Implementations: Writing custom Answer logic that inspects method arguments to infer context and return different values.2 This couples tests tightly to implementation details (argument order/type) and makes tests verbose and hard to read.
-Argument Matching: Using intricate argument matchers to differentiate calls based on context data passed as parameters. This also leads to brittle and less readable tests.
-Stateful Mocks: Employing stateful mocking techniques where the mock transitions between states based on interactions, indirectly representing context changes.23 This often requires significant setup and doesn't map cleanly to distinct, independent contexts.
+```java
+import com.contextualmocker.*;
 
+ContextID user1 = new StringContextId("user1");
+UserService mockService = ContextualMocker.mock(UserService.class);
 
-Contextual Mocking Decisions: Research indicates that mocking decisions themselves are often context-dependent.32 A dependency might be mocked in one test scenario but not another, based on how it interacts with the class under test (CUT) in that specific context. Inappropriate mocking (under-mocking or over-mocking) can lead to ineffective tests or maintenance burdens.32 ContextualMocker aims to provide a mechanism to manage these context-specific behaviors explicitly.
-Existing Contextual Tools: The need for context management in testing is recognized in specific domains. For example, AEM Mocks provide an AemContext object to manage the AEM-specific environment for tests 33, and Ctest4J links configuration parameters (a form of context) to specific tests.34 These demonstrate the value of context management, highlighting the gap for a general-purpose mocking solution.
+ContextualMocker.given(mockService)
+    .forContext(user1)
+    .when(service -> service.getUserData("dataKey"))
+    .thenReturn("User1 Data");
 
-
-The challenges of concurrency safety and context awareness are not independent; they converge critically in the testing of modern applications. Concurrent requests or operations are often the distinct contexts that necessitate different behaviors from shared components. Testing shared singletons under realistic parallel load inherently requires the ability to define mock behavior specific to the context of each concurrent operation. Existing frameworks fail on two fronts: concurrent stubbing/verification on the shared mock instance breaks due to internal thread-safety issues, and even if these operations were safe, defining and managing behavior per-context remains cumbersome and lacks dedicated API support.Furthermore, it is important to distinguish the goals of a mocking framework like ContextualMocker from specialized concurrency testing tools. Tools like RaceFuzzer 35, Fray 36, MAPTest 37, or jcstress 38 focus on exploring thread interleavings, detecting data races or deadlocks, and controlling thread scheduling, often by instrumenting code or manipulating the runtime environment without necessarily mocking dependencies.36 ContextualMocker, conversely, focuses on providing controllable behavior (via mocking) for dependencies within a potentially concurrent execution environment. Its primary contribution lies in robust internal state management that allows context-specific behavior definition and verification, addressing the specific shortcomings of mocking frameworks in concurrent settings. It assumes the underlying test execution (potentially parallel) is managed by the test runner (e.g., JUnit, TestNG) or potentially integrated with concurrency control tools in the future, rather than controlling thread scheduling itself.The following table summarizes the capabilities and limitations of prominent existing frameworks concerning parallel execution safety and context awareness, highlighting the gap ContextualMocker aims to fill.Table 2.1: Feature Comparison: Concurrency & Context in Mocking Frameworks
-FeatureMockitoEasyMockJMockitSpockWireMock (Server)ContextualMocker (Proposed)Parallel Test Runner SupportYes (JUnit/TestNG) 4Limited/Issues 15No/Problematic 16Yes (JUnit Platform) 19Yes (Server) 43YesShared Mock Stubbing SafetyNo 1Limited/Issues 45No/Problematic 16Issues w/ shared/spy 20Yes (via API/Scenarios) 47YesShared Mock Verification SafetyNo 1Limited/Issues 45No/Problematic 16Yes (w/ @ResourceLock) 19Yes (via API/Scenarios) 47YesExplicit Context APINoNoNoNoLimited (Scenarios/Proxy) 47YesStateful Mocking (Basic)Yes (via Answer) 23YesYesYesYes (Scenarios) 47YesContextual Stateful MockingNoNoNoNoLimited (via Scenarios) 47Yes
-3. ContextualMocker: Design Philosophy and GoalsContextualMocker is guided by a set of core principles aimed at providing a robust, intuitive, and performant solution for mocking in concurrent, context-driven environments.
-
-Safety First for Concurrency: The paramount goal is to guarantee thread safety and deterministic behavior for all framework operations, particularly concurrent stubbing and verification targeting shared mock instances. The design must proactively eliminate the race conditions and flakiness observed in existing tools.1 Reliability in concurrent scenarios is non-negotiable and foundational to the framework's value proposition. This necessitates a shift away from designs relying implicitly on thread-local state for core operations, towards explicit, thread-safe state management.
-
-
-Intuitive Context Management: Context should be treated as a first-class citizen within the framework. The API must provide clear, explicit, and user-friendly mechanisms for defining the context associated with a mock interaction (stubbing or verification). The goal is to make specifying context-dependent behavior straightforward and highly readable, reflecting the reality that mocking decisions are often context-aware.32 Complex boilerplate or overly implicit context handling should be avoided in favor of clarity and safety.
-
-
-Expressive and Fluent API: The public APIs for stubbing and verification should be designed for fluency and readability, promoting maintainable test code. Where applicable, the API should align with established patterns like Behavior-Driven Development (Given-When-Then).50 Lessons learned from the success and usability of Mockito's API design 3 should be incorporated, adapted for the requirements of context management and concurrency safety.
-
-
-Performance and Scalability: While correctness and safety are primary, the framework must be designed with performance and scalability in mind, especially for highly concurrent test scenarios. The internal architecture should minimize lock contention and reduce memory overhead.52 Efficient concurrency primitives, such as ConcurrentHashMap and its atomic operations 53, should be leveraged. Performance benchmarks under load will be essential to validate the design.55
-
-
-Extensibility and Integration: The framework should offer well-defined extension points (Service Provider Interfaces - SPIs) to facilitate integration with various test runners (e.g., JUnit 5 57, TestNG 11), context propagation frameworks (e.g., those using MDC 21 or other mechanisms), and potentially other testing or diagnostic tools. This allows for customization and broader adoption, learning from Mockito's extension mechanisms like MockMaker 61 and MockitoListener.63
-
-A key consideration influencing these principles is the inherent trade-off between implicit convenience and explicit safety. Mockito's original API, exemplified by when(mock.method()).thenReturn(...), prioritized convenience by implicitly managing stubbing state via thread-locals. This worked well in single-threaded tests but proved fragile under concurrency.1 In contrast, approaches like WireMock's rely on explicit state management within the mock server.47 ContextualMocker must deliberately favor explicitness in its core state management for concurrency and context handling. The safety guarantees provided by explicit context identification and thread-safe central storage outweigh the minor increase in API verbosity compared to the simplest single-threaded Mockito usage. Fluency will be achieved through the overall API structure (e.g., given(...).forContext(...).when(...).thenReturn(...)) rather than by hiding the underlying state management complexities.4. Core ArchitectureThe architecture of ContextualMocker is designed around a central, thread-safe registry that manages mock state based on both the mock instance and the specific context of interaction.
-
-4.1 Mock Instantiation:
-
-Mechanism: Mock instances will be created using bytecode manipulation, generating proxies that intercept method calls. ByteBuddy is the preferred library for this task, given its capabilities, active maintenance, and successful adoption by Mockito 2+ and Spock.65
-Process: When ContextualMocker.mock() is called, ByteBuddy generates a proxy class extending or implementing the target type. This proxy holds a reference to a central invocation handler.
-Extensibility: A ContextualMockMaker interface, analogous to Mockito's MockMaker 61, could be provided as an extension point for custom mock creation strategies, ensuring the design accommodates context requirements.
-
-
-
-4.2 Invocation Interception:
+String result = mockService.getUserData("dataKey"); // returns "User1 Data" for user1 context
+```
 
 Mechanism: All method calls on a mock instance are intercepted by the generated ByteBuddy proxy.
 Handler Delegation: The proxy delegates every intercepted invocation to a shared (but internally thread-safe) ContextualInvocationHandler instance associated with the mock. This handler is the central point for processing incoming calls.
