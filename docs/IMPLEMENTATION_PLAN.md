@@ -111,13 +111,16 @@ Phase 2 is now complete for core verification and argument matcher support. The 
 
 ---
 
-## Phase 4: Advanced Features (Potential Post-v1.0)
+## Phase 4: Advanced Features (Current Focus: Stateful Mocking In Progress)
 
 **Objective:** Implement features beyond the core requirements.
 
-### 4.1: Stateful Mocking
+### 4.1: Stateful Mocking (In Progress)
 
-**Motivation:**  
+**Status:**
+This is the current development focus. Implementation of stateful mocking is now in progress.
+
+**Motivation:**
 Enable mocks to exhibit stateful behavior within a context, supporting realistic workflows and session-based scenarios. Allow stubbing and verification to depend on the current state, and support state transitions as a result of method invocations.
 
 **Requirements:**
