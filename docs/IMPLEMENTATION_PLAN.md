@@ -71,22 +71,25 @@ graph TD
 
 **Objective:** Enable verification of mock interactions within specific contexts.
 
-- **2.1: Implement Explicit Contextual Verification Flow**
-  - Implement `verify(T mock)`, `forContext(ContextID contextId)`, and create `ContextSpecificVerificationInitiator`.
+- **2.1: Implement Explicit Contextual Verification Flow** (Implemented)
+  - Implemented `verify(T mock)`, `forContext(ContextID contextId)`, and `ContextSpecificVerificationInitiatorImpl` for context-aware verification.
 
-- **2.2: Implement Verification Modes**
-  - Implement `times`, `never`, `atLeastOnce`, `atMost`, etc.
+- **2.2: Implement Verification Modes** (Implemented)
+  - Implemented `times`, `never`, `atLeastOnce`, `atMost`, etc. as verification modes.
 
-- **2.3: Implement Verification `method()` & Matchers**
-  - Implement terminal `method(Consumer<T> methodCall)`.
-  - Query `MockRegistry.invocationRecords` for the specified context.
-  - Apply verification mode logic and argument matchers.
+- **2.3: Implement Verification `method()` & Matchers** (Implemented)
+  - Implemented terminal verification with method call and argument matchers.
+  - Verification queries `MockRegistry.invocationRecords` for the specified context.
+  - Verification mode logic and argument matchers are fully supported.
 
-- **2.4: Implement `verifyNoMoreInteractions` / `verifyNoInteractions`**
-  - Implement context-specific interaction checks.
+- **2.4: Implement `verifyNoMoreInteractions` / `verifyNoInteractions`** (Pending)
+  - Context-specific interaction checks to be implemented in a future phase.
 
-- **2.5: Basic Verification Error Handling**
-  - Implement error handling for verification failures.
+- **2.5: Basic Verification Error Handling** (Implemented)
+  - Verification failures now throw clear assertion errors with invocation details.
+
+**Summary:**  
+Phase 2 is now complete for core verification and argument matcher support. The framework supports context-aware verification, verification modes, and flexible argument matching for both stubbing and verification. Remaining work includes advanced interaction checks and further error handling refinement.
 
 ---
 

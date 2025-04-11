@@ -9,8 +9,26 @@ import java.util.Objects;
 
 public final class ContextualMocker {
 
-    private ContextualMocker() {
-        // Static entry point class
+    private ContextualMocker() {}
+
+    public static ContextualVerificationMode times(int wantedNumberOfInvocations) {
+        return new TimesVerificationMode(wantedNumberOfInvocations);
+    }
+
+    public static ContextualVerificationMode never() {
+        return new TimesVerificationMode(0);
+    }
+
+    public static ContextualVerificationMode atLeastOnce() {
+        return new AtLeastVerificationMode(1);
+    }
+
+    public static ContextualVerificationMode atLeast(int minInvocations) {
+        return new AtLeastVerificationMode(minInvocations);
+    }
+
+    public static ContextualVerificationMode atMost(int maxInvocations) {
+        return new AtMostVerificationMode(maxInvocations);
     }
 
     @SuppressWarnings("unchecked")
@@ -89,9 +107,45 @@ public final class ContextualMocker {
     }
 
     // Verification Mode (Placeholder - needs more detail)
-    interface ContextualVerificationMode {
-        // e.g., times(int), never(), atLeastOnce()
-        // This needs a mechanism to capture the method call *after* the mode is set.
+    interface ContextualVerificationMode {}
+
+    static class TimesVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+        private final int wanted;
+        TimesVerificationMode(int wanted) {
+            this.wanted = wanted;
+        }
+        @Override
+        public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
+            if (actual != wanted) {
+                throw new AssertionError("Expected " + wanted + " invocations but got " + actual + " for " + method.getName());
+            }
+        }
+    }
+
+    static class AtLeastVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+        private final int min;
+        AtLeastVerificationMode(int min) {
+            this.min = min;
+        }
+        @Override
+        public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
+            if (actual < min) {
+                throw new AssertionError("Expected at least " + min + " invocations but got " + actual + " for " + method.getName());
+            }
+        }
+    }
+
+    static class AtMostVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+        private final int max;
+        AtMostVerificationMode(int max) {
+            this.max = max;
+        }
+        @Override
+        public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
+            if (actual > max) {
+                throw new AssertionError("Expected at most " + max + " invocations but got " + actual + " for " + method.getName());
+            }
+        }
     }
 
     // --- Implementations (Simplified placeholders) ---
@@ -112,7 +166,7 @@ public final class ContextualMocker {
         }
     }
 
-     private static class ContextualVerificationInitiatorImpl<T> implements ContextualVerificationInitiator<T> {
+    private static class ContextualVerificationInitiatorImpl<T> implements ContextualVerificationInitiator<T> {
         private final T mock;
 
         ContextualVerificationInitiatorImpl(T mock) {
@@ -121,9 +175,9 @@ public final class ContextualMocker {
 
         @Override
         public ContextSpecificVerificationInitiator<T> forContext(ContextID contextId) {
-             Objects.requireNonNull(contextId, "ContextID cannot be null for verification");
-             ContextHolder.setContext(contextId); // Set context for the subsequent verification call
-             return new ContextSpecificVerificationInitiatorImpl<>(mock);
+            Objects.requireNonNull(contextId, "ContextID cannot be null for verification");
+            ContextHolder.setContext(contextId);
+            return new ContextSpecificVerificationInitiatorImpl<>(mock);
         }
     }
 

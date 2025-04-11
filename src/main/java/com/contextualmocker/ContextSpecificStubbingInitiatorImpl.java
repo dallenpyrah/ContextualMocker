@@ -78,19 +78,46 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenReturn(R value) {
-            registerRule(StubbingRule.forReturnValue(handler.getMethod(), handler.getArgs(), value));
+            var matchers = MatcherContext.consumeMatchers();
+            if (!matchers.isEmpty()) {
+                registerRule(StubbingRule.forReturnValueWithMatchers(
+                    handler.getMethod(),
+                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
+                    value
+                ));
+            } else {
+                registerRule(StubbingRule.forReturnValue(handler.getMethod(), handler.getArgs(), value));
+            }
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenThrow(Throwable throwable) {
-            registerRule(StubbingRule.forThrowable(handler.getMethod(), handler.getArgs(), throwable));
+            var matchers = MatcherContext.consumeMatchers();
+            if (!matchers.isEmpty()) {
+                registerRule(StubbingRule.forThrowableWithMatchers(
+                    handler.getMethod(),
+                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
+                    throwable
+                ));
+            } else {
+                registerRule(StubbingRule.forThrowable(handler.getMethod(), handler.getArgs(), throwable));
+            }
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenAnswer(ContextualAnswer<R> answer) {
-            registerRule(StubbingRule.forAnswer(handler.getMethod(), handler.getArgs(), answer));
+            var matchers = MatcherContext.consumeMatchers();
+            if (!matchers.isEmpty()) {
+                registerRule(StubbingRule.forAnswerWithMatchers(
+                    handler.getMethod(),
+                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
+                    answer
+                ));
+            } else {
+                registerRule(StubbingRule.forAnswer(handler.getMethod(), handler.getArgs(), answer));
+            }
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 

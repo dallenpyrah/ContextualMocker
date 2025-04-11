@@ -130,3 +130,50 @@ Determining the correct `ContextID` for an invocation is critical. Several strat
 - The explicit context-passing API (`forContext(contextId)`) is implemented as described.
 - Core stubbing logic (`when`, `thenReturn`, `thenThrow`, `thenAnswer`) is implemented and thread-safe via `MockRegistry`.
 - The public API now enforces explicit context for all stubbing operations.
+- Verification API is implemented: `verify`, `forContext`, and verification modes (`times`, `never`, `atLeastOnce`, `atMost`) allow context-specific verification of mock interactions.
+- Argument matcher support is implemented: `any()`, `eq()`, and matcher context are supported for both stubbing and verification, enabling expressive and flexible matching of method arguments.
+
+## 5. Verification API and Argument Matcher Support
+
+### 5.1 Verification API
+
+ContextualMocker provides a fluent, context-aware verification API to assert mock interactions within a specific context. The API supports verification modes and integrates with argument matchers.
+
+**Example Usage:**
+```java
+ContextualMocker.verify(mock)
+    .forContext(contextId)
+    .verify(ContextualMocker.times(2))
+    .someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo"));
+```
+
+- `verify(mock)`: Begins verification for the given mock.
+- `forContext(contextId)`: Specifies the context for verification.
+- `verify(mode)`: Sets the verification mode (e.g., times, never, atLeastOnce, atMost).
+- Method call: The method to verify, with support for argument matchers.
+
+**Verification Modes:**
+- `ContextualMocker.times(int n)`: Expects exactly n invocations.
+- `ContextualMocker.never()`: Expects zero invocations.
+- `ContextualMocker.atLeastOnce()`: Expects at least one invocation.
+- `ContextualMocker.atLeast(int n)`: Expects at least n invocations.
+- `ContextualMocker.atMost(int n)`: Expects at most n invocations.
+
+### 5.2 Argument Matcher Support
+
+Argument matchers allow flexible matching of method arguments in both stubbing and verification.
+
+- `ArgumentMatchers.any()`: Matches any argument.
+- `ArgumentMatchers.eq(value)`: Matches arguments equal to the given value.
+
+Matchers are registered in a thread-local context and are consumed in the order of method arguments. If matchers are present, they are used for matching; otherwise, direct value comparison is used.
+
+**Example Usage:**
+```java
+ContextualMocker.given(mock)
+    .forContext(contextId)
+    .when(mock.someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo")))
+    .thenReturn(result);
+```
+
+Thread safety is maintained throughout stubbing and verification, with all matcher and invocation state managed per context in the MockRegistry.

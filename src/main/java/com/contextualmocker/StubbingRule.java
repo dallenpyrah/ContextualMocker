@@ -6,7 +6,8 @@ import java.util.Objects;
 
 class StubbingRule {
     private final Method method;
-    private final Object[] expectedArguments; // For exact matching initially
+    private final Object[] expectedArguments;
+    private final ArgumentMatchers.ArgumentMatcher<?>[] argumentMatchers;
     private final ContextualAnswer<?> answer;
     private final Object returnValue;
     private final Throwable throwable;
@@ -14,44 +15,54 @@ class StubbingRule {
     private final boolean hasThrowable;
     private final boolean hasAnswer;
 
-    private StubbingRule(Method method, Object[] expectedArguments, ContextualAnswer<?> answer, Object returnValue, Throwable throwable) {
+    private StubbingRule(Method method, Object[] expectedArguments, ArgumentMatchers.ArgumentMatcher<?>[] argumentMatchers, ContextualAnswer<?> answer, Object returnValue, Throwable throwable) {
         this.method = Objects.requireNonNull(method, "Method cannot be null");
-        this.expectedArguments = expectedArguments == null ? new Object[0] : expectedArguments.clone(); // Defensive copy
+        this.expectedArguments = expectedArguments == null ? new Object[0] : expectedArguments.clone();
+        this.argumentMatchers = argumentMatchers;
         this.answer = answer;
         this.returnValue = returnValue;
         this.throwable = throwable;
-
         this.hasAnswer = answer != null;
-        this.hasReturnValue = returnValue != null && !hasAnswer; // Answer takes precedence
-        this.hasThrowable = throwable != null && !hasAnswer && !hasReturnValue; // Lowest precedence
-
-        if (!hasAnswer && !hasReturnValue && !hasThrowable) {
-            // Default behavior if nothing else is specified might be null,
-            // but let's require at least one action for clarity.
-            // Or maybe default to null return? For now, let's assume one is set.
-            // Revisit if default behavior needs refinement.
-        }
+        this.hasReturnValue = returnValue != null && !hasAnswer;
+        this.hasThrowable = throwable != null && !hasAnswer && !hasReturnValue;
     }
 
     static StubbingRule forReturnValue(Method method, Object[] expectedArguments, Object returnValue) {
-        return new StubbingRule(method, expectedArguments, null, returnValue, null);
+        return new StubbingRule(method, expectedArguments, null, null, returnValue, null);
+    }
+
+    static StubbingRule forReturnValueWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, Object returnValue) {
+        return new StubbingRule(method, null, matchers, null, returnValue, null);
     }
 
     static StubbingRule forThrowable(Method method, Object[] expectedArguments, Throwable throwable) {
-        return new StubbingRule(method, expectedArguments, null, null, throwable);
+        return new StubbingRule(method, expectedArguments, null, null, null, throwable);
+    }
+
+    static StubbingRule forThrowableWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, Throwable throwable) {
+        return new StubbingRule(method, null, matchers, null, null, throwable);
     }
 
     static StubbingRule forAnswer(Method method, Object[] expectedArguments, ContextualAnswer<?> answer) {
-        return new StubbingRule(method, expectedArguments, answer, null, null);
+        return new StubbingRule(method, expectedArguments, null, answer, null, null);
+    }
+
+    static StubbingRule forAnswerWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, ContextualAnswer<?> answer) {
+        return new StubbingRule(method, null, matchers, answer, null, null);
     }
 
     boolean matches(Method invokedMethod, Object[] invokedArguments) {
         if (!method.equals(invokedMethod)) {
             return false;
         }
-        // Simple exact argument matching for now
+        if (argumentMatchers != null) {
+            if (invokedArguments == null || argumentMatchers.length != invokedArguments.length) return false;
+            for (int i = 0; i < argumentMatchers.length; i++) {
+                if (!argumentMatchers[i].matches(invokedArguments[i])) return false;
+            }
+            return true;
+        }
         return Arrays.equals(expectedArguments, invokedArguments);
-        // TODO: Integrate more sophisticated argument matchers later
     }
 
     Object apply(ContextID contextId, Object mock, Method invokedMethod, Object[] invokedArguments) throws Throwable {
