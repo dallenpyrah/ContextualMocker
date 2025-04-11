@@ -1,0 +1,20 @@
+# Exclude Roo code rules and config
+.roo/
+
+# Exclude build output and binaries
+target/
+*.class
+
+# Exclude IDE/editor config
+.vscode/
+.idea/
+*.iml
+
+# Exclude OS files
+.DS_Store
+Thumbs.db
+
+# Exclude logs and temp files
+*.log
+*.tmp
+*.swp
