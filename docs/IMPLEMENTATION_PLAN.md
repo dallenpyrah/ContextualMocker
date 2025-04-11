@@ -115,10 +115,53 @@ Phase 2 is now complete for core verification and argument matcher support. The 
 
 **Objective:** Implement features beyond the core requirements.
 
-- **4.1: Stateful Mocking**
-- **4.2: ThreadLocal Context**
-- **4.3: Extension Points (SPIs)**
-- **4.4: Performance Analysis & Optimization**
+### 4.1: Stateful Mocking
+
+**Motivation:**  
+Enable mocks to exhibit stateful behavior within a context, supporting realistic workflows and session-based scenarios. Allow stubbing and verification to depend on the current state, and support state transitions as a result of method invocations.
+
+**Requirements:**
+- Per-mock, per-context state storage.
+- API extensions for stateful stubbing:
+  - `whenStateIs(Object state)`: Restrict stubbing to apply only when the mock is in the specified state for the context.
+  - `willSetStateTo(Object newState)`: Specify that the mock's state for the context will transition to `newState` after the stubbed method is invoked.
+- Thread-safe state management and transitions.
+- Backward compatibility with existing context-aware stubbing and verification.
+
+**Design:**
+- Extend `MockRegistry` to maintain a state map:
+  - `ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, AtomicReference<Object>>> stateMap`
+- Extend stubbing DSL in `ContextualMocker` and related classes to support `whenStateIs` and `willSetStateTo`.
+- On method invocation:
+  - Check current state for mock/context.
+  - Apply stubbing rule only if `whenStateIs` matches.
+  - If `willSetStateTo` is specified, atomically update state after invocation.
+- Initial state is `null` unless explicitly set.
+
+**Implementation Steps:**
+1. Add state map to `MockRegistry` and ensure thread-safe access.
+2. Update stubbing classes to support `whenStateIs` and `willSetStateTo` in the API.
+3. Update invocation handler to check and update state as required.
+4. Add tests for stateful mocking, including:
+   - State-restricted stubbing.
+   - State transitions.
+   - Thread safety under concurrent state transitions.
+5. Update documentation and usage examples.
+
+**Testing:**
+- Add unit and integration tests for stateful mocking.
+- Test state transitions and isolation between contexts.
+- Test thread safety with concurrent state changes.
+
+**Documentation:**
+- Update DESIGN.md with stateful mocking design and API.
+- Update user guide and implementation plan.
+
+---
+
+### 4.2: ThreadLocal Context
+### 4.3: Extension Points (SPIs)
+### 4.4: Performance Analysis & Optimization
 
 ---
 

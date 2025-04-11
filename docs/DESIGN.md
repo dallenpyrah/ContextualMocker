@@ -177,3 +177,83 @@ ContextualMocker.given(mock)
 ```
 
 Thread safety is maintained throughout stubbing and verification, with all matcher and invocation state managed per context in the MockRegistry.
+
+## 6. Stateful Mocking and State Transitions
+
+### 6.1 Motivation
+
+In many real-world scenarios, the behavior of a dependency is not only context-dependent but also state-dependent within that context. For example, a mock representing a session or workflow may need to return different results or throw exceptions based on its current state, and state transitions may occur as a result of method invocations. ContextualMocker supports stateful mocking to enable these advanced, realistic test scenarios.
+
+### 6.2 API Extensions
+
+Stateful mocking introduces new API methods to the stubbing DSL:
+
+- `whenStateIs(Object state)`: Restricts the stubbing rule to apply only when the mock is in the specified state for the given context.
+- `willSetStateTo(Object newState)`: Specifies that, when the stubbed method is invoked, the mock's state for the context will transition to `newState`.
+
+These methods can be composed fluently with existing stubbing methods:
+
+```java
+ContextualMocker.given(mock)
+    .forContext(contextId)
+    .whenStateIs("LOGGED_OUT")
+    .when(mock.login("user", "pass"))
+    .willSetStateTo("LOGGED_IN")
+    .thenReturn(true);
+```
+
+### 6.3 State Storage and Transitions
+
+- The `MockRegistry` maintains a per-mock, per-context state map:
+    ```java
+    ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, AtomicReference<Object>>> stateMap;
+    ```
+    - The outer map is keyed by mock instance (weak reference).
+    - The inner map is keyed by context ID.
+    - The value is an `AtomicReference<Object>` representing the current state for that mock/context.
+
+- When a stubbed method is invoked:
+    - The framework checks the current state for the mock/context.
+    - If a stubbing rule with a matching `whenStateIs` is found, it is applied.
+    - If the rule specifies `willSetStateTo`, the state is atomically updated after the invocation.
+
+- The initial state for a mock/context is `null` unless explicitly set.
+
+### 6.4 Thread Safety
+
+- All state transitions are managed using `AtomicReference` to ensure atomicity and visibility across threads.
+- The state map is managed using `ConcurrentHashMap` for thread-safe access and updates.
+- State transitions are performed atomically to prevent race conditions in concurrent test scenarios.
+
+### 6.5 Example Usage
+
+```java
+// Initial state is null
+ContextualMocker.given(mock)
+    .forContext(ctx)
+    .whenStateIs(null)
+    .when(mock.login("user", "pass"))
+    .willSetStateTo("LOGGED_IN")
+    .thenReturn(true);
+
+ContextualMocker.given(mock)
+    .forContext(ctx)
+    .whenStateIs("LOGGED_IN")
+    .when(mock.logout())
+    .willSetStateTo("LOGGED_OUT")
+    .thenReturn(true);
+
+ContextualMocker.given(mock)
+    .forContext(ctx)
+    .whenStateIs("LOGGED_IN")
+    .when(mock.getSecret())
+    .thenReturn("top-secret");
+```
+
+### 6.6 Design Considerations
+
+- The stateful mocking feature is fully compatible with context-aware and thread-safe design principles.
+- State is always scoped to both the mock instance and the context, ensuring isolation between concurrent test scenarios.
+- The API is designed to be fluent and expressive, supporting realistic workflow and session-based mocking patterns.
+
+---
