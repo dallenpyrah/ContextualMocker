@@ -54,9 +54,9 @@ graph TD
   - Proxies delegate to `ContextualInvocationHandler`.
   - Handle interfaces and non-final classes.
 
-- **1.2: Implement Explicit Contextual Stubbing Flow**
-  - Implement `given(T mock)`, `forContext(ContextID contextId)`, `when(Function<T, R> methodCall)`, and terminal methods (`thenReturn`, `thenThrow`, `thenAnswer`).
-  - Ensure atomic, thread-safe updates to `MockRegistry.stubbingRules`.
+- **1.2: Implement Explicit Contextual Stubbing Flow** (Implemented)
+- Implemented `given(T mock)`, `forContext(ContextID contextId)`, `when(Function<T, R> methodCall)`, and terminal methods (`thenReturn`, `thenThrow`, `thenAnswer`).
+- Ensured atomic, thread-safe updates to `MockRegistry.stubbingRules`.
 
 - **1.3: Integrate Argument Matchers (Stubbing)**
   - Allow standard Mockito `ArgumentMatchers` in `when()`.

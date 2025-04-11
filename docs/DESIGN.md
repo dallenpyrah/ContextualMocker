@@ -123,3 +123,10 @@ Determining the correct `ContextID` for an invocation is critical. Several strat
     * **Implementation:** The registered hook/listener is invoked by the `ContextualInvocationHandler` to obtain the current `ContextID`.
 
 * **Default Choice & Rationale:** Explicit Context Passing is recommended as the default strategy due to its superior robustness, predictability, and safety across diverse execution
+
+---
+
+**Implementation Status (v1):**
+- The explicit context-passing API (`forContext(contextId)`) is implemented as described.
+- Core stubbing logic (`when`, `thenReturn`, `thenThrow`, `thenAnswer`) is implemented and thread-safe via `MockRegistry`.
+- The public API now enforces explicit context for all stubbing operations.

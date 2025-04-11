@@ -8,3 +8,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 - Initial changelog created to track progress on ContextualMocker.
 - Project identified as a parallel-safe, context-aware Java mocking framework.
 - Known gaps: incomplete API features, missing verification capabilities, lack of stateful mocking.
+- Refactored public API to require explicit context passing using `forContext(contextId)`.
+- Implemented core stubbing logic: `when`, `thenReturn`, `thenThrow`, `thenAnswer` for context-specific stubbing.
+- Added thread-safe stubbing rule registration in `MockRegistry` for per-mock, per-context state management.
