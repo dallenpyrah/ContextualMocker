@@ -73,6 +73,7 @@ public final class ContextualMocker {
         return new ContextualVerificationInitiatorImpl<>(mock);
     }
 
+
     // --- Inner classes for Fluent API ---
     // These will be implemented in separate files or later steps if they grow complex,
     // but placing placeholders here for now.
@@ -89,6 +90,8 @@ public final class ContextualMocker {
 
     // Ongoing Stubbing
     interface OngoingContextualStubbing<T, R> {
+        OngoingContextualStubbing<T, R> whenStateIs(Object state);
+        OngoingContextualStubbing<T, R> willSetStateTo(Object newState);
         ContextSpecificStubbingInitiator<T> thenReturn(R value);
         ContextSpecificStubbingInitiator<T> thenThrow(Throwable throwable);
         ContextSpecificStubbingInitiator<T> thenAnswer(ContextualAnswer<R> answer);
@@ -109,12 +112,11 @@ public final class ContextualMocker {
     // Verification Mode (Placeholder - needs more detail)
     interface ContextualVerificationMode {}
 
-    static class TimesVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+    static class TimesVerificationMode implements ContextualVerificationMode {
         private final int wanted;
         TimesVerificationMode(int wanted) {
             this.wanted = wanted;
         }
-        @Override
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual != wanted) {
                 throw new AssertionError("Expected " + wanted + " invocations but got " + actual + " for " + method.getName());
@@ -122,12 +124,11 @@ public final class ContextualMocker {
         }
     }
 
-    static class AtLeastVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+    static class AtLeastVerificationMode implements ContextualVerificationMode {
         private final int min;
         AtLeastVerificationMode(int min) {
             this.min = min;
         }
-        @Override
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual < min) {
                 throw new AssertionError("Expected at least " + min + " invocations but got " + actual + " for " + method.getName());
@@ -135,12 +136,11 @@ public final class ContextualMocker {
         }
     }
 
-    static class AtMostVerificationMode implements ContextualVerificationMode, ContextSpecificVerificationInitiatorImpl.VerificationMode {
+    static class AtMostVerificationMode implements ContextualVerificationMode {
         private final int max;
         AtMostVerificationMode(int max) {
             this.max = max;
         }
-        @Override
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual > max) {
                 throw new AssertionError("Expected at most " + max + " invocations but got " + actual + " for " + method.getName());

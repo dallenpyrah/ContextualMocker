@@ -7,15 +7,17 @@ import java.util.Objects;
 class StubbingRule {
     private final Method method;
     private final Object[] expectedArguments;
-    private final ArgumentMatchers.ArgumentMatcher<?>[] argumentMatchers;
+    private final ArgumentMatcher<?>[] argumentMatchers;
     private final ContextualAnswer<?> answer;
     private final Object returnValue;
     private final Throwable throwable;
     private final boolean hasReturnValue;
     private final boolean hasThrowable;
     private final boolean hasAnswer;
+    private final Object requiredState;
+    private final Object nextState;
 
-    private StubbingRule(Method method, Object[] expectedArguments, ArgumentMatchers.ArgumentMatcher<?>[] argumentMatchers, ContextualAnswer<?> answer, Object returnValue, Throwable throwable) {
+    private StubbingRule(Method method, Object[] expectedArguments, ArgumentMatcher<?>[] argumentMatchers, ContextualAnswer<?> answer, Object returnValue, Throwable throwable, Object requiredState, Object nextState) {
         this.method = Objects.requireNonNull(method, "Method cannot be null");
         this.expectedArguments = expectedArguments == null ? new Object[0] : expectedArguments.clone();
         this.argumentMatchers = argumentMatchers;
@@ -25,40 +27,81 @@ class StubbingRule {
         this.hasAnswer = answer != null;
         this.hasReturnValue = returnValue != null && !hasAnswer;
         this.hasThrowable = throwable != null && !hasAnswer && !hasReturnValue;
+        this.requiredState = requiredState;
+        this.nextState = nextState;
     }
 
-    static StubbingRule forReturnValue(Method method, Object[] expectedArguments, Object returnValue) {
-        return new StubbingRule(method, expectedArguments, null, null, returnValue, null);
+    static Builder builder(Method method) {
+        return new Builder(method);
     }
 
-    static StubbingRule forReturnValueWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, Object returnValue) {
-        return new StubbingRule(method, null, matchers, null, returnValue, null);
+    static class Builder {
+        private final Method method;
+        private Object[] expectedArguments;
+        private ArgumentMatcher<?>[] argumentMatchers;
+        private ContextualAnswer<?> answer;
+        private Object returnValue;
+        private Throwable throwable;
+        private Object requiredState;
+        private Object nextState;
+
+        Builder(Method method) {
+            this.method = method;
+        }
+
+        Builder expectedArguments(Object[] args) {
+            this.expectedArguments = args;
+            return this;
+        }
+
+        Builder argumentMatchers(ArgumentMatcher<?>[] matchers) {
+            this.argumentMatchers = matchers;
+            return this;
+        }
+
+        Builder answer(ContextualAnswer<?> answer) {
+            this.answer = answer;
+            return this;
+        }
+
+        Builder returnValue(Object value) {
+            this.returnValue = value;
+            return this;
+        }
+
+        Builder throwable(Throwable t) {
+            this.throwable = t;
+            return this;
+        }
+
+        Builder requiredState(Object state) {
+            this.requiredState = state;
+            return this;
+        }
+
+        Builder nextState(Object state) {
+            this.nextState = state;
+            return this;
+        }
+
+        StubbingRule build() {
+            return new StubbingRule(method, expectedArguments, argumentMatchers, answer, returnValue, throwable, requiredState, nextState);
+        }
     }
 
-    static StubbingRule forThrowable(Method method, Object[] expectedArguments, Throwable throwable) {
-        return new StubbingRule(method, expectedArguments, null, null, null, throwable);
-    }
-
-    static StubbingRule forThrowableWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, Throwable throwable) {
-        return new StubbingRule(method, null, matchers, null, null, throwable);
-    }
-
-    static StubbingRule forAnswer(Method method, Object[] expectedArguments, ContextualAnswer<?> answer) {
-        return new StubbingRule(method, expectedArguments, null, answer, null, null);
-    }
-
-    static StubbingRule forAnswerWithMatchers(Method method, ArgumentMatchers.ArgumentMatcher<?>[] matchers, ContextualAnswer<?> answer) {
-        return new StubbingRule(method, null, matchers, answer, null, null);
-    }
-
-    boolean matches(Method invokedMethod, Object[] invokedArguments) {
+    boolean matches(Method invokedMethod, Object[] invokedArguments, Object currentState) {
         if (!method.equals(invokedMethod)) {
+            return false;
+        }
+        if (requiredState != null && !Objects.equals(requiredState, currentState)) {
             return false;
         }
         if (argumentMatchers != null) {
             if (invokedArguments == null || argumentMatchers.length != invokedArguments.length) return false;
             for (int i = 0; i < argumentMatchers.length; i++) {
-                if (!argumentMatchers[i].matches(invokedArguments[i])) return false;
+                @SuppressWarnings("unchecked")
+                ArgumentMatcher<Object> matcher = (ArgumentMatcher<Object>) argumentMatchers[i];
+                if (!matcher.matches(invokedArguments[i])) return false;
             }
             return true;
         }
@@ -73,10 +116,12 @@ class StubbingRule {
         } else if (hasReturnValue) {
             return returnValue;
         } else {
-            // Default behavior if no rule action was defined (e.g., return null for objects)
-            // This aligns with Mockito's default behavior.
             return getDefaultValue(method.getReturnType());
         }
+    }
+
+    Object getNextState() {
+        return nextState;
     }
 
     private static Object getDefaultValue(Class<?> type) {
@@ -90,7 +135,7 @@ class StubbingRule {
             if (type == double.class) return 0.0d;
             if (type == char.class) return '\u0000';
         }
-        return null; // Default for objects and void (though void won't use this return)
+        return null;
     }
 
     @Override
@@ -104,6 +149,8 @@ class StubbingRule {
         return "StubbingRule{" +
                "method=" + method.getName() +
                ", expectedArguments=" + Arrays.toString(expectedArguments) +
+               ", requiredState=" + requiredState +
+               ", nextState=" + nextState +
                ", action=" + action +
                '}';
     }

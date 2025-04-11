@@ -7,117 +7,115 @@ import java.util.Objects;
 
 class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.ContextSpecificStubbingInitiator<T> {
     private final T mock;
+    private Object requiredState;
+    private Object nextState;
 
     ContextSpecificStubbingInitiatorImpl(T mock) {
         this.mock = mock;
     }
 
+
     @Override
     @SuppressWarnings("unchecked")
     public <R> ContextualMocker.OngoingContextualStubbing<T, R> when(R methodCall) {
         Objects.requireNonNull(ContextHolder.getContext(), "ContextID must be set before stubbing");
-        MethodCaptureInvocationHandler<T, R> handler = new MethodCaptureInvocationHandler<>(mock);
-        T proxy = (T) Proxy.newProxyInstance(
-                mock.getClass().getClassLoader(),
-                mock.getClass().getInterfaces(),
-                handler
-        );
-        return new OngoingContextualStubbingImpl<>(mock, ContextHolder.getContext(), handler);
+        com.contextualmocker.ContextualInvocationHandler.setStubbingInProgress(true);
+        // The method call (methodCall) has already happened and should have been intercepted
+        // by ContextualInvocationHandler if stubbingInProgress was true.
+        // However, the flag wasn't set *before* the call.
+
+        // Correct approach: Set flag, evaluate call, unset flag, consume.
+        // No need to set a stubbing flag; the invocation handler always records the last invocation
+        // The method call (methodCall) has already been evaluated and should have been recorded
+        // by ContextualInvocationHandler in ThreadLocals
+
+            // Let's reconsider the proxy approach, but fix the implementation.
+            // when(R methodCall) should not exist.
+            // when() should return a proxy.
+            // The user calls mockProxy.method().
+            // thenReturn() etc. retrieve the captured info.
+
+
+            //    return new OngoingStubbing(handler.method, handler.args);
+            //    ...
+
+        Method method = ContextualInvocationHandler.consumeLastInvokedMethod();
+        Object[] args = ContextualInvocationHandler.consumeLastInvokedArgs();
+        if (method == null) {
+            throw new IllegalStateException("Failed to capture stubbed method via ThreadLocal. " +
+                                            "Ensure the method call uses the mock object directly.");
+        }
+        com.contextualmocker.ContextualInvocationHandler.setStubbingInProgress(false);
+        MockRegistry.removeLastInvocation(mock, ContextHolder.getContext());
+        return new OngoingContextualStubbingImpl<>(mock, ContextHolder.getContext(), method, args);
+    }
     }
 
-    private static class MethodCaptureInvocationHandler<T, R> implements InvocationHandler {
-        private Method method;
-        private Object[] args;
-        private final T mock;
 
-        MethodCaptureInvocationHandler(T mock) {
+    class OngoingContextualStubbingImpl<T, R> implements ContextualMocker.OngoingContextualStubbing<T, R> {
+        private final T mock;
+        private final ContextID contextId;
+        private final Method method;
+        private final Object[] args;
+        private Object requiredState;
+        private Object nextState;
+
+        OngoingContextualStubbingImpl(T mock, ContextID contextId, Method method, Object[] args) {
             this.mock = mock;
+            this.contextId = contextId;
+            this.method = Objects.requireNonNull(method, "Method cannot be null in OngoingStubbing");
+            this.args = args;
+        }
+
+
+        @Override
+        public OngoingContextualStubbingImpl<T, R> whenStateIs(Object state) {
+            this.requiredState = state;
+            return this;
         }
 
         @Override
-        public Object invoke(Object proxy, Method method, Object[] args) {
-            if (this.method == null) {
-                this.method = method;
-                this.args = args != null ? args.clone() : new Object[0];
-            }
-            return getDefaultValue(method.getReturnType());
-        }
-
-        Method getMethod() {
-            return method;
-        }
-
-        Object[] getArgs() {
-            return args;
-        }
-
-        private Object getDefaultValue(Class<?> type) {
-            if (!type.isPrimitive()) return null;
-            if (type == boolean.class) return false;
-            if (type == byte.class) return (byte) 0;
-            if (type == short.class) return (short) 0;
-            if (type == int.class) return 0;
-            if (type == long.class) return 0L;
-            if (type == float.class) return 0.0f;
-            if (type == double.class) return 0.0d;
-            if (type == char.class) return '\u0000';
-            return null;
-        }
-    }
-
-    private static class OngoingContextualStubbingImpl<T, R> implements ContextualMocker.OngoingContextualStubbing<T, R> {
-        private final T mock;
-        private final ContextID contextId;
-        private final MethodCaptureInvocationHandler<T, R> handler;
-
-        OngoingContextualStubbingImpl(T mock, ContextID contextId, MethodCaptureInvocationHandler<T, R> handler) {
-            this.mock = mock;
-            this.contextId = contextId;
-            this.handler = handler;
+        public OngoingContextualStubbingImpl<T, R> willSetStateTo(Object newState) {
+            this.nextState = newState;
+            return this;
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenReturn(R value) {
             var matchers = MatcherContext.consumeMatchers();
-            if (!matchers.isEmpty()) {
-                registerRule(StubbingRule.forReturnValueWithMatchers(
-                    handler.getMethod(),
-                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
-                    value
-                ));
-            } else {
-                registerRule(StubbingRule.forReturnValue(handler.getMethod(), handler.getArgs(), value));
-            }
+            StubbingRule.Builder builder = new StubbingRule.Builder(method)
+                .expectedArguments(args)
+                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
+                .returnValue(value)
+                .requiredState(requiredState)
+                .nextState(nextState);
+            registerRule(builder.build());
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenThrow(Throwable throwable) {
             var matchers = MatcherContext.consumeMatchers();
-            if (!matchers.isEmpty()) {
-                registerRule(StubbingRule.forThrowableWithMatchers(
-                    handler.getMethod(),
-                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
-                    throwable
-                ));
-            } else {
-                registerRule(StubbingRule.forThrowable(handler.getMethod(), handler.getArgs(), throwable));
-            }
+            StubbingRule.Builder builder = new StubbingRule.Builder(method)
+                .expectedArguments(args)
+                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
+                .throwable(throwable)
+                .requiredState(requiredState)
+                .nextState(nextState);
+            registerRule(builder.build());
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
         @Override
         public ContextualMocker.ContextSpecificStubbingInitiator<T> thenAnswer(ContextualAnswer<R> answer) {
             var matchers = MatcherContext.consumeMatchers();
-            if (!matchers.isEmpty()) {
-                registerRule(StubbingRule.forAnswerWithMatchers(
-                    handler.getMethod(),
-                    matchers.toArray(new ArgumentMatchers.ArgumentMatcher<?>[0]),
-                    answer
-                ));
-            } else {
-                registerRule(StubbingRule.forAnswer(handler.getMethod(), handler.getArgs(), answer));
-            }
+            StubbingRule.Builder builder = new StubbingRule.Builder(method)
+                .expectedArguments(args)
+                .argumentMatchers(matchers.isEmpty() ? null : matchers.toArray(new ArgumentMatcher<?>[0]))
+                .answer(answer)
+                .requiredState(requiredState)
+                .nextState(nextState);
+            registerRule(builder.build());
             return new ContextSpecificStubbingInitiatorImpl<>(mock);
         }
 
@@ -125,4 +123,3 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
             MockRegistry.addStubbingRule(mock, contextId, rule);
         }
     }
-}

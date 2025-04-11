@@ -3,6 +3,8 @@
 ## After each feature implementation or subtask completion:
 
 - Add tests for the new feature or subtask.
+- Verify that the new tests pass.
+- The changes must compile.
 - Update the CHANGELOG.md with the changes made.
 - Update the docs/DESIGN.md with any new features or changes.
 - Update the docs/IMPLEMENTATION_PLAN.md with any new features or changes.

@@ -20,8 +20,11 @@ final class MockRegistry {
     private static final ConcurrentMap<WeakReference<Object>, ConcurrentMap<ContextID, Queue<InvocationRecord>>> invocationRecords =
             new ConcurrentHashMap<>();
 
+    // Structure: Mock Instance (WeakRef) -> ContextID -> AtomicReference<Object> (state)
+    private static final ConcurrentMap<WeakReference<Object>, ConcurrentMap<ContextID, java.util.concurrent.atomic.AtomicReference<Object>>> stateMap =
+            new ConcurrentHashMap<>();
+
     private MockRegistry() {
-        // Static utility class
     }
 
     static void addStubbingRule(Object mock, ContextID contextId, StubbingRule rule) {
@@ -33,10 +36,10 @@ final class MockRegistry {
         stubbingRules
                 .computeIfAbsent(mockRef, k -> new ConcurrentHashMap<>())
                 .computeIfAbsent(contextId, k -> new CopyOnWriteArrayList<>())
-                .add(0, rule); // Add to the beginning for LIFO matching
+                .add(0, rule);
     }
 
-    static StubbingRule findStubbingRule(Object mock, ContextID contextId, Method method, Object[] arguments) {
+    static StubbingRule findStubbingRule(Object mock, ContextID contextId, Method method, Object[] arguments, Object currentState) {
         WeakReference<Object> mockRef = findWeakReference(mock, stubbingRules);
         if (mockRef == null) {
             return null;
@@ -52,9 +55,8 @@ final class MockRegistry {
             return null;
         }
 
-        // Find the first matching rule (LIFO order)
         for (StubbingRule rule : rules) {
-            if (rule.matches(method, arguments)) {
+            if (rule.matches(method, arguments, currentState)) {
                 return rule;
             }
         }
@@ -65,14 +67,13 @@ final class MockRegistry {
     static void recordInvocation(InvocationRecord record) {
         Object mock = record.getMock();
         if (mock == null) {
-            return; // Mock was GC'd
+            return;
         }
         ContextID contextId = record.getContextId();
         WeakReference<Object> mockRef = findWeakReference(mock, invocationRecords);
-         if (mockRef == null) {
+        if (mockRef == null) {
             mockRef = new WeakReference<>(mock);
         }
-
 
         invocationRecords
                 .computeIfAbsent(mockRef, k -> new ConcurrentHashMap<>())
@@ -96,8 +97,31 @@ final class MockRegistry {
             return List.of();
         }
 
-        // Return an immutable list copy
-        return List.copyOf(recordsQueue);
+        return recordsQueue.stream()
+                .filter(r -> !r.isStubbing())
+                .toList();
+    }
+
+    static void removeLastInvocation(Object mock, ContextID contextId) {
+        WeakReference<Object> mockRef = findWeakReference(mock, invocationRecords);
+        if (mockRef == null) return;
+        ConcurrentMap<ContextID, Queue<InvocationRecord>> contextMap = invocationRecords.get(mockRef);
+        if (contextMap == null) return;
+        Queue<InvocationRecord> recordsQueue = contextMap.get(contextId);
+        if (recordsQueue == null || recordsQueue.isEmpty()) return;
+        if (recordsQueue instanceof java.util.concurrent.ConcurrentLinkedQueue) {
+            java.util.List<InvocationRecord> list = new java.util.ArrayList<>(recordsQueue);
+            if (!list.isEmpty()) {
+                recordsQueue.remove(list.get(list.size() - 1));
+            }
+        } else if (recordsQueue instanceof java.util.Deque) {
+            ((java.util.Deque<InvocationRecord>) recordsQueue).removeLast();
+        } else if (recordsQueue instanceof java.util.List) {
+            java.util.List<InvocationRecord> list = (java.util.List<InvocationRecord>) recordsQueue;
+            if (!list.isEmpty()) {
+                list.remove(list.size() - 1);
+            }
+        }
     }
 
     static List<InvocationRecord> getAllInvocationRecords(Object mock) {
@@ -111,17 +135,47 @@ final class MockRegistry {
             return List.of();
         }
 
-        // Collect records from all contexts for this mock
         return contextMap.values().stream()
                 .flatMap(Queue::stream)
                 .collect(Collectors.toUnmodifiableList());
     }
 
+    static Object getState(Object mock, ContextID contextId) {
+        WeakReference<Object> mockRef = findWeakReference(mock, stateMap);
+        if (mockRef == null) {
+            return null;
+        }
+        ConcurrentMap<ContextID, java.util.concurrent.atomic.AtomicReference<Object>> contextMap = stateMap.get(mockRef);
+        if (contextMap == null) {
+            return null;
+        }
+        java.util.concurrent.atomic.AtomicReference<Object> ref = contextMap.get(contextId);
+        return ref == null ? null : ref.get();
+    }
 
-    // Helper to find the existing WeakReference for a given mock object
+    static void setState(Object mock, ContextID contextId, Object newState) {
+        WeakReference<Object> mockRef = findWeakReference(mock, stateMap);
+        if (mockRef == null) {
+            mockRef = new WeakReference<>(mock);
+        }
+        stateMap
+                .computeIfAbsent(mockRef, k -> new ConcurrentHashMap<>())
+                .computeIfAbsent(contextId, k -> new java.util.concurrent.atomic.AtomicReference<>())
+                .set(newState);
+    }
+
+    static void resetState(Object mock, ContextID contextId) {
+        WeakReference<Object> mockRef = findWeakReference(mock, stateMap);
+        if (mockRef == null) {
+            return;
+        }
+        ConcurrentMap<ContextID, java.util.concurrent.atomic.AtomicReference<Object>> contextMap = stateMap.get(mockRef);
+        if (contextMap != null) {
+            contextMap.remove(contextId);
+        }
+    }
+
     private static <V> WeakReference<Object> findWeakReference(Object mock, ConcurrentMap<WeakReference<Object>, V> map) {
-        // Clean up stale references while searching - might impact performance slightly
-        // Consider a separate cleanup thread if this becomes a bottleneck
         map.keySet().removeIf(ref -> ref.get() == null);
 
         for (WeakReference<Object> ref : map.keySet()) {
@@ -132,10 +186,9 @@ final class MockRegistry {
         return null;
     }
 
-    // Optional: Method to explicitly clean up GC'd references if needed
     static void cleanUpStaleReferences() {
         stubbingRules.keySet().removeIf(ref -> ref.get() == null);
         invocationRecords.keySet().removeIf(ref -> ref.get() == null);
-        // Could also clean inner maps if necessary, but less likely needed
+        stateMap.keySet().removeIf(ref -> ref.get() == null);
     }
 }

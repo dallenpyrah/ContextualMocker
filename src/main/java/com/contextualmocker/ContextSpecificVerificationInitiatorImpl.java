@@ -43,7 +43,7 @@ class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.Co
             if (this.method == null) {
                 this.method = method;
                 this.args = args != null ? args.clone() : new Object[0];
-                List<ArgumentMatchers.ArgumentMatcher<?>> matchers = MatcherContext.consumeMatchers();
+                List<ArgumentMatcher<?>> matchers = MatcherContext.consumeMatchers();
                 List<InvocationRecord> invocations = MockRegistry.getInvocationRecords(mock, contextId);
                 int matchCount = 0;
                 for (InvocationRecord record : invocations) {
@@ -64,7 +64,13 @@ class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.Co
                         }
                     }
                 }
-                ((VerificationMode) mode).verifyCount(matchCount, method, args);
+                if (mode instanceof ContextualMocker.TimesVerificationMode) {
+                    ((ContextualMocker.TimesVerificationMode) mode).verifyCount(matchCount, method, args);
+                } else if (mode instanceof ContextualMocker.AtLeastVerificationMode) {
+                    ((ContextualMocker.AtLeastVerificationMode) mode).verifyCount(matchCount, method, args);
+                } else if (mode instanceof ContextualMocker.AtMostVerificationMode) {
+                    ((ContextualMocker.AtMostVerificationMode) mode).verifyCount(matchCount, method, args);
+                }
             }
             return getDefaultValue(method.getReturnType());
         }
@@ -81,9 +87,5 @@ class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.Co
             if (type == char.class) return '\u0000';
             return null;
         }
-    }
-
-    public interface VerificationMode extends ContextualMocker.ContextualVerificationMode {
-        void verifyCount(int actual, Method method, Object[] args);
     }
 }

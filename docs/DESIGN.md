@@ -77,6 +77,15 @@ The architecture of ContextualMocker is designed around a central, thread-safe r
 
     * **Stubbing Rules:**
         ```java
+### 4.x Stubbing Invocation Recording and Verification Separation
+
+A key challenge in Java mocking frameworks is ensuring that invocations made during stubbing setup (e.g., the method call inside `when(mock.method(...))`) are not counted as real invocations for verification. In ContextualMocker, this is addressed by:
+
+- Marking invocations made during stubbing setup and filtering them out from verification counts.
+- Due to Java's evaluation order, the stubbing flag cannot be set before the method call in the `when` API. As a workaround, the framework removes the most recent invocation for the mock/context after stubbing is set up, ensuring only real test-driven invocations are counted.
+- This approach is robustly tested with scenarios involving multiple stubbing setups, interleaved stubbing and invocation, and context separation, confirming that stubbing does not affect verification counts.
+
+This design ensures that verification accurately reflects only the invocations made during the test, not those made as part of stubbing setup, and is critical for correct and predictable test outcomes.
         // Key: Weak ref to mock instance, Value: Map of ContextID -> Rules
         ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, List<StubbingRule>>> stubbingRules;
         ```

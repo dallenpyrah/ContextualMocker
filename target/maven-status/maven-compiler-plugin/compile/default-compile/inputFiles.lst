@@ -1,0 +1,17 @@
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextSpecificStubbingInitiatorImpl.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/StubbingRule.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextualInvocationHandler.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextHolder.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextID.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ArgumentMatcher.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/EqMatcher.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextualAnswer.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/AnyMatcher.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextSpecificVerificationInitiatorImpl.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/MethodCaptureInvocationHandler.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/StringContextId.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/InvocationRecord.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/MockRegistry.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/MatcherContext.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ContextualMocker.java
+/Users/dallenpyrah/ContextMock/src/main/java/com/contextualmocker/ArgumentMatchers.java

@@ -31,6 +31,12 @@ graph TD
         Phase2 --> M(3.4: Add Concurrency Tests)
     end
 
+    subgraph Phase 3.5: Stubbing/Verification Separation & Robustness
+        Phase2 --> R[3.5: Ensure invocations during stubbing are not counted for verification]
+        R --> S(3.5.1: Implement workaround to remove stubbing invocation after setup)
+        S --> T(3.5.2: Add robustness tests for multiple stubbing, interleaved stubbing/invocation, and context separation)
+    end
+
     subgraph Phase 4: Advanced Features (Post-Core)
         Phase3 --> N[4.1: Stateful Mocking]
         Phase3 --> O[4.2: ThreadLocal Context]

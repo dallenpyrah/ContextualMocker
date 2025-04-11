@@ -13,18 +13,21 @@ public final class InvocationRecord {
     private final ContextID contextId;
     private final Instant timestamp;
     private final long threadId;
+    private final boolean stubbing;
 
     public InvocationRecord(
             Object mock,
             Method method,
             Object[] arguments,
-            ContextID contextId) {
+            ContextID contextId,
+            boolean stubbing) {
         this.mockRef = new WeakReference<>(Objects.requireNonNull(mock, "Mock cannot be null"));
         this.method = Objects.requireNonNull(method, "Method cannot be null");
-        this.arguments = arguments == null ? new Object[0] : arguments.clone(); // Defensive copy
+        this.arguments = arguments == null ? new Object[0] : arguments.clone();
         this.contextId = Objects.requireNonNull(contextId, "ContextID cannot be null");
         this.timestamp = Instant.now();
         this.threadId = Thread.currentThread().getId();
+        this.stubbing = stubbing;
     }
 
     public WeakReference<Object> getMockRef() {
@@ -59,16 +62,18 @@ public final class InvocationRecord {
     public String toString() {
         Object mock = getMock();
         return "InvocationRecord{" +
-               "mock=" + (mock != null ? mock.getClass().getSimpleName() + "@" + System.identityHashCode(mock) : "null (GC'd)") +
-               ", method=" + method.getName() +
-               ", arguments=" + Arrays.toString(arguments) +
-               ", contextId=" + contextId +
-               ", timestamp=" + timestamp +
-               ", threadId=" + threadId +
-               '}';
+                "mock="
+                + (mock != null ? mock.getClass().getSimpleName() + "@" + System.identityHashCode(mock) : "null (GC'd)")
+                +
+                ", method=" + method.getName() +
+                ", arguments=" + Arrays.toString(arguments) +
+                ", contextId=" + contextId +
+                ", timestamp=" + timestamp +
+                ", threadId=" + threadId +
+                '}';
     }
-
-    // equals/hashCode are not typically needed for simple records like this,
-    // unless they are stored in sets or used as map keys directly.
-    // The identity of the record is usually sufficient.
+    
+    public boolean isStubbing() {
+        return stubbing;
+    }
 }
