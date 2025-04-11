@@ -57,6 +57,16 @@ A key consideration influencing these principles is the inherent trade-off betwe
 
 ## 4. Core Architecture
 
+### 4.0 Project Structure
+
+ContextualMocker's source code is organized into logical subfolders to enhance maintainability and clarity:
+
+- **core**: Contains the central components like `MockRegistry` and primary mocking logic.
+- **handlers**: Includes invocation handlers for managing mock interactions.
+- **initiators**: Provides classes for initiating stubbing and verification processes with context awareness.
+- **matchers**: Supports argument matching capabilities for flexible stubbing and verification.
+
+This modular structure facilitates easier extension and maintenance of the framework.
 The architecture of ContextualMocker is designed around a central, thread-safe registry that manages mock state based on both the mock instance and the specific context of interaction.
 
 ### 4.1 Edge Case and Robustness Test Coverage Plan

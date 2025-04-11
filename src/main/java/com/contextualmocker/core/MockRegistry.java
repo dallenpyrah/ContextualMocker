@@ -1,4 +1,4 @@
-package com.contextualmocker;
+package com.contextualmocker.core;
 
 import java.lang.ref.WeakReference;
 import java.lang.reflect.Method;
@@ -10,7 +10,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
-final class MockRegistry {
+public final class MockRegistry {
 
     // Structure: Mock Instance (WeakRef) -> ContextID -> List of Rules
     private static final ConcurrentMap<WeakReference<Object>, ConcurrentMap<ContextID, List<StubbingRule>>> stubbingRules =
@@ -27,7 +27,7 @@ final class MockRegistry {
     private MockRegistry() {
     }
 
-    static void addStubbingRule(Object mock, ContextID contextId, StubbingRule rule) {
+    public static void addStubbingRule(Object mock, ContextID contextId, StubbingRule rule) {
         WeakReference<Object> mockRef = findWeakReference(mock, stubbingRules);
         if (mockRef == null) {
             mockRef = new WeakReference<>(mock);
@@ -39,7 +39,7 @@ final class MockRegistry {
                 .add(0, rule);
     }
 
-    static StubbingRule findStubbingRule(Object mock, ContextID contextId, Method method, Object[] arguments, Object currentState) {
+    public static StubbingRule findStubbingRule(Object mock, ContextID contextId, Method method, Object[] arguments, Object currentState) {
         WeakReference<Object> mockRef = findWeakReference(mock, stubbingRules);
         if (mockRef == null) {
             return null;
@@ -64,7 +64,7 @@ final class MockRegistry {
         return null;
     }
 
-    static void recordInvocation(InvocationRecord record) {
+    public static void recordInvocation(InvocationRecord record) {
         Object mock = record.getMock();
         if (mock == null) {
             return;
@@ -81,7 +81,7 @@ final class MockRegistry {
                 .offer(record);
     }
 
-    static List<InvocationRecord> getInvocationRecords(Object mock, ContextID contextId) {
+    public static List<InvocationRecord> getInvocationRecords(Object mock, ContextID contextId) {
         WeakReference<Object> mockRef = findWeakReference(mock, invocationRecords);
         if (mockRef == null) {
             return List.of();
@@ -102,7 +102,7 @@ final class MockRegistry {
                 .toList();
     }
 
-    static void removeLastInvocation(Object mock, ContextID contextId) {
+    public static void removeLastInvocation(Object mock, ContextID contextId) {
         WeakReference<Object> mockRef = findWeakReference(mock, invocationRecords);
         if (mockRef == null) return;
         ConcurrentMap<ContextID, Queue<InvocationRecord>> contextMap = invocationRecords.get(mockRef);
@@ -140,7 +140,7 @@ final class MockRegistry {
                 .collect(Collectors.toUnmodifiableList());
     }
 
-    static Object getState(Object mock, ContextID contextId) {
+    public static Object getState(Object mock, ContextID contextId) {
         WeakReference<Object> mockRef = findWeakReference(mock, stateMap);
         if (mockRef == null) {
             return null;
@@ -153,7 +153,7 @@ final class MockRegistry {
         return ref == null ? null : ref.get();
     }
 
-    static void setState(Object mock, ContextID contextId, Object newState) {
+    public static void setState(Object mock, ContextID contextId, Object newState) {
         WeakReference<Object> mockRef = findWeakReference(mock, stateMap);
         if (mockRef == null) {
             mockRef = new WeakReference<>(mock);

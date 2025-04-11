@@ -1,15 +1,22 @@
-package com.contextualmocker;
-
+package com.contextualmocker.initiators;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import java.util.Objects;
+import com.contextualmocker.core.ContextualMocker;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.core.ContextHolder;
+import com.contextualmocker.matchers.ArgumentMatcher;
+import com.contextualmocker.matchers.MatcherContext;
+import com.contextualmocker.core.InvocationRecord;
+import com.contextualmocker.core.MockRegistry;
+import com.contextualmocker.handlers.VerificationMethodCaptureHandler;
 
-class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.ContextSpecificVerificationInitiator<T> {
+public class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.ContextSpecificVerificationInitiator<T> {
     private final T mock;
 
-    ContextSpecificVerificationInitiatorImpl(T mock) {
+    public ContextSpecificVerificationInitiatorImpl(T mock) {
         this.mock = mock;
     }
 
@@ -25,7 +32,7 @@ class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMocker.Co
         );
     }
 
-    private static class VerificationMethodCaptureHandler<T> implements InvocationHandler {
+    public static class VerificationMethodCaptureHandler<T> implements InvocationHandler {
         private final T mock;
         private final ContextualMocker.ContextualVerificationMode mode;
         private final ContextID contextId;

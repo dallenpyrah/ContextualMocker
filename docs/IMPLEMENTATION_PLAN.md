@@ -4,6 +4,16 @@
 
 This document outlines the prioritized and sequenced plan to implement the missing and incomplete features required for a functional, parallel-safe, context-aware mocking framework as defined in the project design.
 
+## Project Structure
+
+ContextualMocker's source code is organized into logical subfolders to enhance maintainability and clarity:
+
+- **core**: Contains the central components like `MockRegistry` and primary mocking logic.
+- **handlers**: Includes invocation handlers for managing mock interactions.
+- **initiators**: Provides classes for initiating stubbing and verification processes with context awareness.
+- **matchers**: Supports argument matching capabilities for flexible stubbing and verification.
+
+This modular structure facilitates easier extension and maintenance of the framework.
 ---
 
 ## Edge Case and Robustness Test Coverage Plan

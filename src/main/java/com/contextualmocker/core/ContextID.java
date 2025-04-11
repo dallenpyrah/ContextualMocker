@@ -1,4 +1,4 @@
-package com.contextualmocker;
+package com.contextualmocker.core;
 
 /**
  * A marker interface for context identifiers.

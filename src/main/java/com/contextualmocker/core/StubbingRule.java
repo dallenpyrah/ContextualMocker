@@ -1,10 +1,13 @@
-package com.contextualmocker;
+package com.contextualmocker.core;
+import com.contextualmocker.matchers.ArgumentMatcher;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.handlers.ContextualAnswer;
 
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
 
-class StubbingRule {
+public class StubbingRule {
     private final Method method;
     private final Object[] expectedArguments;
     private final ArgumentMatcher<?>[] argumentMatchers;
@@ -35,7 +38,7 @@ class StubbingRule {
         return new Builder(method);
     }
 
-    static class Builder {
+    public static class Builder {
         private final Method method;
         private Object[] expectedArguments;
         private ArgumentMatcher<?>[] argumentMatchers;
@@ -45,46 +48,46 @@ class StubbingRule {
         private Object requiredState;
         private Object nextState;
 
-        Builder(Method method) {
+        public Builder(Method method) {
             this.method = method;
         }
 
-        Builder expectedArguments(Object[] args) {
+        public Builder expectedArguments(Object[] args) {
             this.expectedArguments = args;
             return this;
         }
 
-        Builder argumentMatchers(ArgumentMatcher<?>[] matchers) {
+        public Builder argumentMatchers(ArgumentMatcher<?>[] matchers) {
             this.argumentMatchers = matchers;
             return this;
         }
 
-        Builder answer(ContextualAnswer<?> answer) {
+        public Builder answer(ContextualAnswer<?> answer) {
             this.answer = answer;
             return this;
         }
 
-        Builder returnValue(Object value) {
+        public Builder returnValue(Object value) {
             this.returnValue = value;
             return this;
         }
 
-        Builder throwable(Throwable t) {
+        public Builder throwable(Throwable t) {
             this.throwable = t;
             return this;
         }
 
-        Builder requiredState(Object state) {
+        public Builder requiredState(Object state) {
             this.requiredState = state;
             return this;
         }
 
-        Builder nextState(Object state) {
+        public Builder nextState(Object state) {
             this.nextState = state;
             return this;
         }
 
-        StubbingRule build() {
+        public StubbingRule build() {
             return new StubbingRule(method, expectedArguments, argumentMatchers, answer, returnValue, throwable, requiredState, nextState);
         }
     }
@@ -116,7 +119,8 @@ class StubbingRule {
         return Arrays.equals(expectedArguments, invokedArguments);
     }
 
-    Object apply(ContextID contextId, Object mock, Method invokedMethod, Object[] invokedArguments) throws Throwable {
+    @SuppressWarnings("unchecked")
+    public Object apply(ContextID contextId, Object mock, Method invokedMethod, Object[] invokedArguments) throws Throwable {
         if (hasAnswer) {
             return answer.answer(contextId, mock, invokedMethod, invokedArguments);
         } else if (hasThrowable) {
@@ -128,7 +132,7 @@ class StubbingRule {
         }
     }
 
-    Object getNextState() {
+    public Object getNextState() {
         return nextState;
     }
 

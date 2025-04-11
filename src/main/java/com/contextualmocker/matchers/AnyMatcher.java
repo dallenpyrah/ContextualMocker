@@ -1,4 +1,4 @@
-package com.contextualmocker;
+package com.contextualmocker.matchers;
 
 class AnyMatcher<T> implements ArgumentMatcher<T> {
     @Override

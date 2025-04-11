@@ -1,4 +1,8 @@
-package com.contextualmocker;
+package com.contextualmocker.core;
+import com.contextualmocker.handlers.ContextualInvocationHandler;
+import com.contextualmocker.handlers.ContextualAnswer;
+import com.contextualmocker.initiators.ContextSpecificStubbingInitiatorImpl;
+import com.contextualmocker.initiators.ContextSpecificVerificationInitiatorImpl;
 
 import net.bytebuddy.ByteBuddy;
 import net.bytebuddy.implementation.InvocationHandlerAdapter;
@@ -79,17 +83,17 @@ public final class ContextualMocker {
     // but placing placeholders here for now.
 
     // Stubbing Initiator
-    interface ContextualStubbingInitiator<T> {
+    public interface ContextualStubbingInitiator<T> {
         ContextSpecificStubbingInitiator<T> forContext(ContextID contextId);
     }
 
     // Context-Specific Stubbing
-    interface ContextSpecificStubbingInitiator<T> {
+    public interface ContextSpecificStubbingInitiator<T> {
         <R> OngoingContextualStubbing<T, R> when(R methodCall); // R is the return type of the method call
     }
 
     // Ongoing Stubbing
-    interface OngoingContextualStubbing<T, R> {
+    public interface OngoingContextualStubbing<T, R> {
         OngoingContextualStubbing<T, R> whenStateIs(Object state);
         OngoingContextualStubbing<T, R> willSetStateTo(Object newState);
         ContextSpecificStubbingInitiator<T> thenReturn(R value);
@@ -98,23 +102,23 @@ public final class ContextualMocker {
     }
 
     // Verification Initiator
-    interface ContextualVerificationInitiator<T> {
+    public interface ContextualVerificationInitiator<T> {
         ContextSpecificVerificationInitiator<T> forContext(ContextID contextId);
         // Add verification modes directly? e.g., verify(mock, times(2)).forContext(ctx)...
         // Or keep it separate? Let's follow the design doc structure for now.
     }
 
     // Context-Specific Verification
-    interface ContextSpecificVerificationInitiator<T> {
+    public interface ContextSpecificVerificationInitiator<T> {
         T verify(ContextualVerificationMode mode); // Returns the mock proxy to allow method call
     }
 
     // Verification Mode (Placeholder - needs more detail)
-    interface ContextualVerificationMode {}
+    public interface ContextualVerificationMode {}
 
-    static class TimesVerificationMode implements ContextualVerificationMode {
+    public static class TimesVerificationMode implements ContextualVerificationMode {
         private final int wanted;
-        TimesVerificationMode(int wanted) {
+        public TimesVerificationMode(int wanted) {
             this.wanted = wanted;
         }
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
@@ -124,9 +128,9 @@ public final class ContextualMocker {
         }
     }
 
-    static class AtLeastVerificationMode implements ContextualVerificationMode {
+    public static class AtLeastVerificationMode implements ContextualVerificationMode {
         private final int min;
-        AtLeastVerificationMode(int min) {
+        public AtLeastVerificationMode(int min) {
             this.min = min;
         }
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
@@ -136,21 +140,21 @@ public final class ContextualMocker {
         }
     }
 
-    static class AtMostVerificationMode implements ContextualVerificationMode {
+    public static class AtMostVerificationMode implements ContextualVerificationMode {
         private final int max;
-        AtMostVerificationMode(int max) {
+
+        public AtMostVerificationMode(int max) {
             this.max = max;
         }
+
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual > max) {
-                throw new AssertionError("Expected at most " + max + " invocations but got " + actual + " for " + method.getName());
+                throw new AssertionError(
+                        "Expected at most " + max + " invocations but got " + actual + " for " + method.getName());
             }
         }
     }
-
-    // --- Implementations (Simplified placeholders) ---
-    // These will need actual logic to interact with ContextHolder and MockRegistry
-
+    
     private static class ContextualStubbingInitiatorImpl<T> implements ContextualStubbingInitiator<T> {
         private final T mock;
 
@@ -177,7 +181,7 @@ public final class ContextualMocker {
         public ContextSpecificVerificationInitiator<T> forContext(ContextID contextId) {
             Objects.requireNonNull(contextId, "ContextID cannot be null for verification");
             ContextHolder.setContext(contextId);
-            return new ContextSpecificVerificationInitiatorImpl<>(mock);
+            return new ContextSpecificVerificationInitiatorImpl<T>(mock);
         }
     }
 

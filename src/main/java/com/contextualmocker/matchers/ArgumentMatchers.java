@@ -1,4 +1,4 @@
-package com.contextualmocker;
+package com.contextualmocker.matchers;
 
 import java.util.Objects;
 

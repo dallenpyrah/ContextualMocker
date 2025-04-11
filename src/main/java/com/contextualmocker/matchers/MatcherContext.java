@@ -1,9 +1,9 @@
-package com.contextualmocker;
+package com.contextualmocker.matchers;
 
 import java.util.ArrayList;
 import java.util.List;
 
-final class MatcherContext {
+public final class MatcherContext {
     private static final ThreadLocal<List<ArgumentMatcher<?>>> matchers =
             ThreadLocal.withInitial(ArrayList::new);
 
@@ -11,7 +11,7 @@ final class MatcherContext {
         matchers.get().add(matcher);
     }
 
-    static List<ArgumentMatcher<?>> consumeMatchers() {
+    public static List<ArgumentMatcher<?>> consumeMatchers() {
         List<ArgumentMatcher<?>> current = new ArrayList<>(matchers.get());
         System.out.println("[MatcherContext] Thread: " + Thread.currentThread().getName() + " consuming matchers: " + current);
         matchers.get().clear();

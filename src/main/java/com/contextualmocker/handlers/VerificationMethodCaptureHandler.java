@@ -1,4 +1,10 @@
-package com.contextualmocker;
+package com.contextualmocker.handlers;
+import com.contextualmocker.core.ContextualMocker;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.matchers.ArgumentMatcher;
+import com.contextualmocker.matchers.MatcherContext;
+import com.contextualmocker.core.InvocationRecord;
+import com.contextualmocker.core.MockRegistry;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;

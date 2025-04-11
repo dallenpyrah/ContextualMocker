@@ -1,10 +1,17 @@
-package com.contextualmocker;
+package com.contextualmocker.handlers;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.core.ContextHolder;
+import com.contextualmocker.matchers.ArgumentMatcher;
+import com.contextualmocker.matchers.MatcherContext;
+import com.contextualmocker.core.InvocationRecord;
+import com.contextualmocker.core.MockRegistry;
+import com.contextualmocker.core.StubbingRule;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.List;
 
-class ContextualInvocationHandler implements InvocationHandler {
+public class ContextualInvocationHandler implements InvocationHandler {
 
     private static final ThreadLocal<Method> lastInvokedMethod = new ThreadLocal<>();
     private static final ThreadLocal<Object[]> lastInvokedArgs = new ThreadLocal<>();

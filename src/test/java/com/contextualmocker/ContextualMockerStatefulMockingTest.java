@@ -2,7 +2,11 @@ package com.contextualmocker;
 
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
-
+import com.contextualmocker.core.ContextHolder;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.core.ContextualMocker;
+import com.contextualmocker.core.StringContextId;
+import com.contextualmocker.matchers.*;
 
 public class ContextualMockerStatefulMockingTest {
 

@@ -1,16 +1,23 @@
-package com.contextualmocker;
+package com.contextualmocker.initiators;
+import com.contextualmocker.core.ContextualMocker;
+import com.contextualmocker.core.ContextHolder;
+import com.contextualmocker.handlers.ContextualInvocationHandler;
+import com.contextualmocker.core.MockRegistry;
+import com.contextualmocker.core.StubbingRule;
+import com.contextualmocker.matchers.MatcherContext;
+import com.contextualmocker.matchers.ArgumentMatcher;
+import com.contextualmocker.core.ContextID;
+import com.contextualmocker.handlers.ContextualAnswer;
 
-import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
 import java.util.Objects;
 
-class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.ContextSpecificStubbingInitiator<T> {
+public class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.ContextSpecificStubbingInitiator<T> {
     private final T mock;
     private Object requiredState;
     private Object nextState;
 
-    ContextSpecificStubbingInitiatorImpl(T mock) {
+    public ContextSpecificStubbingInitiatorImpl(T mock) {
         this.mock = mock;
     }
 
@@ -19,7 +26,7 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
     @SuppressWarnings("unchecked")
     public <R> ContextualMocker.OngoingContextualStubbing<T, R> when(R methodCall) {
         Objects.requireNonNull(ContextHolder.getContext(), "ContextID must be set before stubbing");
-        com.contextualmocker.ContextualInvocationHandler.setStubbingInProgress(true);
+        ContextualInvocationHandler.setStubbingInProgress(true);
         // The method call (methodCall) has already happened and should have been intercepted
         // by ContextualInvocationHandler if stubbingInProgress was true.
         // However, the flag wasn't set *before* the call.
@@ -45,7 +52,7 @@ class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker.Contex
             throw new IllegalStateException("Failed to capture stubbed method via ThreadLocal. " +
                                             "Ensure the method call uses the mock object directly.");
         }
-        com.contextualmocker.ContextualInvocationHandler.setStubbingInProgress(false);
+        ContextualInvocationHandler.setStubbingInProgress(false);
         MockRegistry.removeLastInvocation(mock, ContextHolder.getContext());
         return new OngoingContextualStubbingImpl<>(mock, ContextHolder.getContext(), method, args);
     }
