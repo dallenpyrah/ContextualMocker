@@ -34,7 +34,7 @@ Furthermore, it is important to distinguish the goals of a mocking framework lik
 
 **Table 2.1: Feature Comparison: Concurrency & Context in Mocking Frameworks**
 
-| Feature                        | Mockito                       | EasyMock                      | JMockit                       | Spock                         | WireMock (Server)             | ContextualMocker (Proposed) |
+| Feature                        | Mockito                       | EasyMock                      | JMockit                       | Spock                         | WireMock (Server)             | ContextualMocker |
 | :----------------------------- | :---------------------------- | :---------------------------- | :---------------------------- | :---------------------------- | :---------------------------- | :-------------------------- |
 | Parallel Test Runner Support | Yes (JUnit/TestNG)            | Limited/Issues                | No/Problematic                | Yes (JUnit Platform)          | Yes (Server)                  | Yes                       |
 | Shared Mock Stubbing Safety  | No                            | Limited/Issues                | No/Problematic                | Issues w/ shared/spy          | Yes (via API/Scenarios)       | Yes                       |
@@ -51,7 +51,6 @@ ContextualMocker is guided by a set of core principles aimed at providing a robu
 * **Intuitive Context Management:** Context should be treated as a first-class citizen within the framework. The API must provide clear, explicit, and user-friendly mechanisms for defining the context associated with a mock interaction (stubbing or verification). The goal is to make specifying context-dependent behavior straightforward and highly readable, reflecting the reality that mocking decisions are often context-aware. Complex boilerplate or overly implicit context handling should be avoided in favor of clarity and safety.
 * **Expressive and Fluent API:** The public APIs for stubbing and verification should be designed for fluency and readability, promoting maintainable test code. Where applicable, the API should align with established patterns like Behavior-Driven Development (Given-When-Then). Lessons learned from the success and usability of Mockito's API design should be incorporated, adapted for the requirements of context management and concurrency safety.
 * **Performance and Scalability:** While correctness and safety are primary, the framework must be designed with performance and scalability in mind, especially for highly concurrent test scenarios. The internal architecture should minimize lock contention and reduce memory overhead. Efficient concurrency primitives, such as `ConcurrentHashMap` and its atomic operations, should be leveraged. Performance benchmarks under load will be essential to validate the design.
-* **Extensibility and Integration:** The framework should offer well-defined extension points (Service Provider Interfaces - SPIs) to facilitate integration with various test runners (e.g., JUnit 5, TestNG), context propagation frameworks (e.g., those using MDC or other mechanisms), and potentially other testing or diagnostic tools. This allows for customization and broader adoption, learning from Mockito's extension mechanisms like `MockMaker` and `MockitoListener`.
 
 A key consideration influencing these principles is the inherent trade-off between implicit convenience and explicit safety. Mockito's original API, exemplified by `when(mock.method()).thenReturn(...)`, prioritized convenience by implicitly managing stubbing state via thread-locals. This worked well in single-threaded tests but proved fragile under concurrency. In contrast, approaches like WireMock's rely on explicit state management within the mock server. ContextualMocker must deliberately favor explicitness in its core state management for concurrency and context handling. The safety guarantees provided by explicit context identification and thread-safe central storage outweigh the minor increase in API verbosity compared to the simplest single-threaded Mockito usage. Fluency will be achieved through the overall API structure (e.g., `given(...).forContext(...).when(...).thenReturn(...)`) rather than by hiding the underlying state management complexities.
 
@@ -92,8 +91,8 @@ This plan ensures that ContextualMocker is robust, parallel-safe, and reliable u
 ### 4.1 Mock Instantiation:
 
 * **Mechanism:** Mock instances will be created using bytecode manipulation, generating proxies that intercept method calls. ByteBuddy is the preferred library for this task, given its capabilities, active maintenance, and successful adoption by Mockito 2+ and Spock.
-* **Process:** When `ContextualMocker.mock()` is called, ByteBuddy generates a proxy class extending or implementing the target type. This proxy holds a reference to a central `ContextualInvocationHandler`.
-* **Extensibility:** A `ContextualMockMaker` interface, analogous to Mockito's `MockMaker`, could be provided as an extension point for custom mock creation strategies, ensuring the design accommodates context requirements.
+* **Process:** When `ContextualMocker.mock()` is called, ByteBuddy generates a proxy class implementing the target interface. **Note: Only interfaces are supported for mocking in the current implementation.**
+* **Limitation:** Mocking of concrete classes is not supported.
 
 ### 4.2 Invocation Interception:
 
@@ -106,28 +105,20 @@ This plan ensures that ContextualMocker is robust, parallel-safe, and reliable u
 * **Data Structures:** The core of the registry involves nested concurrent maps to store stubbing rules and invocation records, keyed first by the mock instance and then by the context ID.
 
     * **Stubbing Rules:**
-        ```java
-### 4.x Stubbing Invocation Recording and Verification Separation
-
-A key challenge in Java mocking frameworks is ensuring that invocations made during stubbing setup (e.g., the method call inside `when(mock.method(...))`) are not counted as real invocations for verification. In ContextualMocker, this is addressed by:
-
-- Marking invocations made during stubbing setup and filtering them out from verification counts.
-- Due to Java's evaluation order, the stubbing flag cannot be set before the method call in the `when` API. As a workaround, the framework removes the most recent invocation for the mock/context after stubbing is set up, ensuring only real test-driven invocations are counted.
-- This approach is robustly tested with scenarios involving multiple stubbing setups, interleaved stubbing and invocation, and context separation, confirming that stubbing does not affect verification counts.
-
-This design ensures that verification accurately reflects only the invocations made during the test, not those made as part of stubbing setup, and is critical for correct and predictable test outcomes.
-        // Key: Weak ref to mock instance, Value: Map of ContextID -> Rules
-        ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, List<StubbingRule>>> stubbingRules;
-        ```
+        ### 4.x Stubbing Invocation Recording and Verification Separation
+        
+        A key challenge in Java mocking frameworks is ensuring that invocations made during stubbing setup (e.g., the method call inside `when(mock.method(...))`) are not counted as real invocations for verification. In ContextualMocker, this is addressed by:
+        
+        - Marking invocations made during stubbing setup and filtering them out from verification counts.
+        - Due to Java's evaluation order, the stubbing flag cannot be set before the method call in the `when` API. As a workaround, the framework removes the most recent invocation for the mock/context after stubbing is set up, ensuring only real test-driven invocations are counted.
+        - This approach is robustly tested with scenarios involving multiple stubbing setups, interleaved stubbing and invocation, and context separation, confirming that stubbing does not affect verification counts.
+        
+        This design ensures that verification accurately reflects only the invocations made during the test, not those made as part of stubbing setup, and is critical for correct and predictable test outcomes.
         * `WeakReference<Object>`: Using a weak reference to the mock instance allows the mock object to be garbage collected if it's no longer referenced elsewhere, preventing memory leaks.
         * `Object` (Inner Map Key): Represents the `ContextID`. This can be any user-defined object (String, Long, custom type) provided it correctly implements `equals()` and `hashCode()`.
         * `List<StubbingRule>`: A thread-safe list containing the ordered stubbing rules for that specific mock/context pair. Each `StubbingRule` encapsulates method matchers, argument matchers, and the corresponding `Answer` or return value. The choice of list implementation (e.g., `CopyOnWriteArrayList`, `synchronized ArrayList`, `ConcurrentLinkedQueue`) depends on the expected read/write ratio for stubbing operations. `CopyOnWriteArrayList` is efficient if stubbing is infrequent compared to invocation handling reads.
 
     * **Invocation Records:**
-        ```java
-        // Key: Weak ref to mock instance, Value: Map of ContextID -> Invocations
-        ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, BlockingQueue<InvocationRecord>>> invocationRecords;
-        ```
         * `BlockingQueue<InvocationRecord>`: A thread-safe queue (e.g., `ConcurrentLinkedQueue` or `LinkedBlockingQueue`) is suitable for recording invocations, as this is primarily a high-frequency write operation during test execution. Using a queue facilitates ordered recording. Sharding or other strategies might be needed for extreme throughput scenarios.
         * `InvocationRecord`: An immutable object capturing invocation details (mock reference, method, arguments, context ID, timestamp, thread ID).
 
@@ -149,19 +140,7 @@ Determining the correct `ContextID` for an invocation is critical. Several strat
     * **Cons:** Requires the test author to manage and pass the context identifier, potentially increasing verbosity.
     * **Implementation:** The passed `ContextID` is used directly as the key for the inner `ConcurrentHashMap` in the `MockRegistry`.
 
-* **Strategy 2: Implicit Context Capture via ThreadLocal:**
-    * **Mechanism:** The framework offers utilities like `ContextualMocker.runInContext(contextId, () -> { /* test code */ })` or integrates with JUnit/TestNG extensions to manage a `ThreadLocal<ContextID>`. Framework methods like `when(...)` or `verify(...)` would implicitly retrieve the context from this `ThreadLocal`.
-    * **Pros:** Can lead to less verbose API calls within the contextual block. Feels more "automatic".
-    * **Cons:** Inherently fragile in asynchronous execution environments or applications using thread pools where threads are reused, as the `ThreadLocal` value might leak or be incorrect. Requires extremely careful setup and cleanup (e.g., using `ThreadLocal.remove()` in `finally` blocks or via test framework extensions). Can obscure the dependency on context. Potential for memory leaks if `remove()` is not diligently called.
-    * **Implementation:** The `ContextualInvocationHandler` reads from the `ThreadLocal`. Requires robust lifecycle management, ideally automated via extensions.
-
-* **Strategy 3: Framework Integration Hooks:**
-    * **Mechanism:** Define SPIs (e.g., `ContextResolver`) or listener interfaces (akin to `MockitoListener` or AEM Context Plugins) that allow external frameworks (e.g., web frameworks, context propagation libraries) to provide the `ContextID`.
-    * **Pros:** Enables seamless integration with existing application context mechanisms (e.g., retrieving a request ID from MDC).
-    * **Cons:** Requires specific integration code to be developed for each supported framework. Can be complex to implement correctly.
-    * **Implementation:** The registered hook/listener is invoked by the `ContextualInvocationHandler` to obtain the current `ContextID`.
-
-* **Default Choice & Rationale:** Explicit Context Passing is recommended as the default strategy due to its superior robustness, predictability, and safety across diverse execution
+*Note: The current implementation only supports explicit context passing via the API (e.g., `forContext(contextId)`). ThreadLocal context, runInContext utilities, and integration hooks are not implemented.*
 
 ---
 
@@ -183,6 +162,13 @@ ContextualMocker provides a fluent, context-aware verification API to assert moc
 ContextualMocker.verify(mock)
     .forContext(contextId)
     .verify(ContextualMocker.times(2))
+    .someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo"));
+```
+Note: In actual usage, if you use static imports for `verify` and verification modes, the pattern is:
+```java
+verify(mock)
+    .forContext(contextId)
+    .verify(times(2))
     .someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo"));
 ```
 
@@ -211,7 +197,7 @@ Matchers are registered in a thread-local context and are consumed in the order 
 ```java
 ContextualMocker.given(mock)
     .forContext(contextId)
-    .when(mock.someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo")))
+    .when(() -> mock.someMethod(ArgumentMatchers.any(), ArgumentMatchers.eq("foo")))
     .thenReturn(result);
 ```
 
@@ -236,7 +222,7 @@ These methods can be composed fluently with existing stubbing methods:
 ContextualMocker.given(mock)
     .forContext(contextId)
     .whenStateIs("LOGGED_OUT")
-    .when(mock.login("user", "pass"))
+    .when(() -> mock.login("user", "pass"))
     .willSetStateTo("LOGGED_IN")
     .thenReturn(true);
 ```
@@ -244,9 +230,6 @@ ContextualMocker.given(mock)
 ### 6.3 State Storage and Transitions
 
 - The `MockRegistry` maintains a per-mock, per-context state map:
-    ```java
-    ConcurrentMap<WeakReference<Object>, ConcurrentMap<Object, AtomicReference<Object>>> stateMap;
-    ```
     - The outer map is keyed by mock instance (weak reference).
     - The inner map is keyed by context ID.
     - The value is an `AtomicReference<Object>` representing the current state for that mock/context.
@@ -271,21 +254,21 @@ ContextualMocker.given(mock)
 ContextualMocker.given(mock)
     .forContext(ctx)
     .whenStateIs(null)
-    .when(mock.login("user", "pass"))
+    .when(() -> mock.login("user", "pass"))
     .willSetStateTo("LOGGED_IN")
     .thenReturn(true);
 
 ContextualMocker.given(mock)
     .forContext(ctx)
     .whenStateIs("LOGGED_IN")
-    .when(mock.logout())
+    .when(() -> mock.logout())
     .willSetStateTo("LOGGED_OUT")
     .thenReturn(true);
 
 ContextualMocker.given(mock)
     .forContext(ctx)
     .whenStateIs("LOGGED_IN")
-    .when(mock.getSecret())
+    .when(() -> mock.getSecret())
     .thenReturn("top-secret");
 ```
 

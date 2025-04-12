@@ -30,13 +30,27 @@ ContextualMocker tackles these challenges with:
 ContextualMocker enables thread-safe, context-aware mocking for concurrent Java applications. The typical usage pattern is:
 
 1. **Create a mock for your interface:**
-   `MyService mock = ContextualMocker.mock(MyService.class);`
+   ```java
+   MyService mock = ContextualMocker.mock(MyService.class);
+   ```
 2. **Set the context for the current thread:**
-   `ContextHolder.setContext(contextId);`
+   ```java
+   ContextHolder.setContext(contextId);
+   ```
 3. **Define context-specific stubbing:**
-   `ContextualMocker.given(mock).forContext(contextId).when(() -> mock.someMethod(args)).thenReturn(result);`
+   ```java
+   ContextualMocker.given(mock)
+       .forContext(contextId)
+       .when(() -> mock.someMethod(args))
+       .thenReturn(result);
+   ```
 4. **Call methods and verify interactions:**
-   `ContextualMocker.verify(mock).forContext(contextId).verify(times(1)).someMethod(args);`
+   ```java
+   ContextualMocker.verify(mock)
+       .forContext(contextId)
+       .verify(times(1))
+       .someMethod(args);
+   ```
 
 For comprehensive, real-world examples (including stateful mocking, argument matchers, and concurrency), see [USAGE.md](USAGE.md).
 

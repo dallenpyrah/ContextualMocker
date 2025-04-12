@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Clarified and cross-referenced documentation in `docs/DESIGN.md` and `docs/IMPLEMENTATION_PLAN.md`.
   - Added `maven-javadoc-plugin` to `pom.xml` for API documentation generation.
   - Ensured documentation consistency and updated all relevant files as per project rules.
+  - **Reviewed and updated all API usage examples in `docs/DESIGN.md` to match the actual codebase.** All examples now use the correct lambda syntax for `.when(() -> mock.method(...))` and reflect the current API and usage patterns. No usage patterns were removed; all examples were cross-checked against the implementation and test code.
 - Code cleanup: Removed non-essential comments from all Java source files in `src/main/java` and `src/test/java` to improve code readability. No logic or documentation was changed. All tests pass and the codebase compiles.
 - Refactored logging system:
  - All debug and internal logging now uses SLF4J with Logback.
