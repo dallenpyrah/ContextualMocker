@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- Added `docs/ONBOARDING.md`: Comprehensive onboarding guide for new engineers, covering project overview, architecture, setup, contribution, testing, debugging, and design philosophies.
+- Documentation improvements:
+  - Enhanced and clarified JavaDocs for all public classes, methods, and important fields in `src/main/java`.
+  - Improved `README.md` with clearer project description, features, installation, and usage instructions.
+  - Expanded and reorganized `USAGE.md` with practical examples and improved navigation.
+  - Clarified and cross-referenced documentation in `docs/DESIGN.md` and `docs/IMPLEMENTATION_PLAN.md`.
+  - Added `maven-javadoc-plugin` to `pom.xml` for API documentation generation.
+  - Ensured documentation consistency and updated all relevant files as per project rules.
+- Code cleanup: Removed non-essential comments from all Java source files in `src/main/java` and `src/test/java` to improve code readability. No logic or documentation was changed. All tests pass and the codebase compiles.
+- Refactored logging system:
+ - All debug and internal logging now uses SLF4J with Logback.
+ - All System.out debug statements have been replaced with logger.debug calls.
+ - Debug-level logs are only output when debug mode is enabled by setting the environment variable `CONTEXTUAL_MOCKER_DEBUG=true` or the system property `-DCONTEXTUAL_MOCKER_DEBUG=true`.
+ - By default, only INFO and higher logs are output, and debug logs are completely suppressed in production.
+ - Added `src/main/resources/logback.xml` to control logging configuration.
+- Added `ContextualMockerEdgeCasesTest.java` covering:
+  - Error handling for invalid API usage (nulls, invalid context IDs, misuse of argument matchers, calling mock methods outside stubbing/verification context)
+  - Resource cleanup and memory management (context cleanup, weak reference behavior)
+  - Ensured all new tests pass and the codebase compiles
+- Added tests for argument matcher edge cases (`any()`, `eq()`, `anyInt()`, nulls, deep equality) in `ContextualMockerCoreTest.java`.
+- Added tests for stateful mocking (`whenStateIs`, `willSetStateTo`, state transitions, context/mock isolation, concurrency, null state) in `ContextualMockerStatefulTest.java`.
+- Added initial core feature tests based on IMPLEMENTATION_PLAN.md:
+  - `ContextualMockerCoreTest`: Covers basic `mock()`, `given().forContext().when().thenReturn()`, and `verify().forContext().verify().method()` flows.
+  - `ContextHolderTest`: Covers basic `setContext()`, `getContext()`, `clearContext()`, and interaction with `MockRegistry.clearInvocationsForContext()`.
+  - Added Mockito dependency (`mockito-core`, `mockito-inline`) to `pom.xml` for test support.
+- Implemented automatic cleanup of invocation records upon context exit:
+  - Added `MockRegistry.clearInvocationsForContext(ContextID contextId)` method to remove all invocation records associated with a specific context.
+  - Modified `ContextHolder.clearContext()` to call `clearInvocationsForContext` before removing the context ID from the thread-local storage.
+  - This prevents potential memory leaks by ensuring invocation records do not accumulate indefinitely.
+- Added stubbing rule expiration (TTL):
+  - Added `ttlMillis(long)` method to the `OngoingContextualStubbing` API to set a time-to-live for individual stubbing rules.
+  - Rules with a positive TTL will automatically expire and be removed from the registry after the specified duration.
+  - `MockRegistry` now checks for and removes expired rules during rule lookup (`findStubbingRule`).
+  - Added tests (`StubbingRuleExpirationTest`) to verify TTL functionality.
+- Refactored MatcherContext: argument matcher storage is now context-specific, not just thread-specific. Matchers are isolated per context, preventing leakage between different contexts within the same thread. All relevant methods now use the current context as part of the matcher storage key.
 - Added comprehensive edge case test coverage for ContextualMocker, including:
   - Concurrent stubbing and verification on shared mocks
   - Context isolation and context collision
@@ -14,22 +49,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
   - Exception handling in stubbing, verification, and state transitions
   - Memory/resource cleanup (weak reference behavior, registry cleanup)
   - API misuse (missing context, invalid state, incomplete stubbing/verification chains)
-- All new tests pass and the codebase compiles.
-- Two advanced concurrency/stateful edge case tests are marked as disabled pending further investigation.
-- Fixed: Invocations made during stubbing setup are no longer counted toward verification, resolving overcounting in verification (e.g., "Expected 2 invocations but got 3" for `greet`).
-- Workaround: Due to Java evaluation order, the stubbing invocation is removed after setup to ensure only real invocations are counted.
-- Added robustness tests to ensure stubbing does not affect verification counts, including multiple stubbing, interleaved stubbing and invocation, and context separation.
-- Implemented stateful mocking: per-mock, per-context state storage and transitions.
-- Added API methods `whenStateIs(state)` and `willSetStateTo(newState)` for stateful stubbing.
-- Stubbing rules can now be restricted to a specific state and trigger state transitions after invocation.
-- State transitions and isolation are thread-safe and context-aware.
-- Added tests for stateful mocking, state transitions, and per-context state isolation.
-- Initial changelog created to track progress on ContextualMocker.
-- Project identified as a parallel-safe, context-aware Java mocking framework.
-- Refactored public API to require explicit context passing using `forContext(contextId)`.
-- Implemented core stubbing logic: `when`, `thenReturn`, `thenThrow`, `thenAnswer` for context-specific stubbing.
-- Added thread-safe stubbing rule registration in `MockRegistry` for per-mock, per-context state management.
-- Implemented verification API: `verify`, `forContext`, and verification modes (`times`, `never`, `atLeastOnce`, `atMost`).
-- Added argument matcher support: `any()`, `eq()`, and matcher context for both stubbing and verification.
-- Integrated thread-safe verification logic with `MockRegistry` and invocation records.
-- Updated stubbing and verification flows to support both direct value and matcher-based argument matching.
+  - All new tests pass and the codebase compiles.
+  - Two advanced concurrency/stateful edge case tests are marked as disabled pending further investigation.
+  - Fixed: Invocations made during stubbing setup are no longer counted toward verification, resolving overcounting in verification (e.g., "Expected 2 invocations but got 3" for `greet`).
+  - Workaround: Due to Java evaluation order, the stubbing invocation is removed after setup to ensure only real invocations are counted.
+  - Added robustness tests to ensure stubbing does not affect verification counts, including multiple stubbing, interleaved stubbing and invocation, and context separation.
+  - Implemented stateful mocking: per-mock, per-context state storage and transitions.
+  - Added API methods `whenStateIs(state)` and `willSetStateTo(newState)` for stateful stubbing.
+  - Stubbing rules can now be restricted to a specific state and trigger state transitions after invocation.
+  - State transitions and isolation are thread-safe and context-aware.
+  - Added tests for stateful mocking, state transitions, and per-context state isolation.
+  - Initial changelog created to track progress on ContextualMocker.
+  - Project identified as a parallel-safe, context-aware Java mocking framework.
+  - Refactored public API to require explicit context passing using `forContext(contextId)`.
+  - Implemented core stubbing logic: `when`, `thenReturn`, `thenThrow`, `thenAnswer` for context-specific stubbing.
+  - Added thread-safe stubbing rule registration in `MockRegistry` for per-mock, per-context state management.
+  - Implemented verification API: `verify`, `forContext`, and verification modes (`times`, `never`, `atLeastOnce`, `atMost`).
+  - Added argument matcher support: `any()`, `eq()`, and matcher context for both stubbing and verification.
+  - Integrated thread-safe verification logic with `MockRegistry` and invocation records.
+  - Updated stubbing and verification flows to support both direct value and matcher-based argument matching.
+  - Implemented `verifyNoMoreInteractions` and `verifyNoInteractions` static methods in `ContextualMocker`.
+  - Updated verification logic in `ContextSpecificVerificationInitiatorImpl` to mark invocations as verified.
+  - Added `verified` flag to `InvocationRecord`.
+  - Added Javadoc to core public APIs (`ContextualMocker`, `MockRegistry`, `ArgumentMatchers`).
+  - Created `USAGE.md` with comprehensive usage examples.
+  - Refined verification error messages to include method name and arguments.
+  - Added `ContextualMockerConcurrencyTest.java`:
+    - Tests concurrent stubbing, invocation, and verification from multiple threads, ensuring context isolation and thread safety.
+    - Verifies stateful mocking and argument matching work correctly in parallel scenarios.
+    - Includes a TTL/expiration concurrency test to ensure rules expire and are removed correctly under concurrent access.
+  - Fixed visibility issues and imports in tests.
+
+- **Added GitHub Actions CI/CD workflow**:
+  - Introduced `.github/workflows/ci-cd.yml` for automated build, test, packaging, semantic versioning, and release.
+  - Workflow runs on push and pull request to `main`, `master`, and `develop` branches.
+  - Automates Maven build, runs all tests, and packages the project as a JAR.
+  - On merge to `main`/`master`, uses Conventional Commits to determine next version, bumps `pom.xml`, generates release notes, and creates a GitHub Release.
+  - Artifacts are uploaded for inspection; optional steps for publishing to GitHub Packages or Maven Central are included (require credentials).
+  - Documentation updated in `README.md`, `docs/DESIGN.md`, and `docs/IMPLEMENTATION_PLAN.md` to describe the CI/CD process.

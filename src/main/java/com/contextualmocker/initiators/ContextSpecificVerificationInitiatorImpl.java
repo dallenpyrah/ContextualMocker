@@ -2,6 +2,7 @@ package com.contextualmocker.initiators;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import com.contextualmocker.core.ContextualMocker;
@@ -51,58 +52,64 @@ public class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMo
             if (this.method == null) {
                 this.method = method;
                 this.args = args != null ? args.clone() : new Object[0];
-                // Retrieve matchers from the current thread context
                 this.verificationMatchers = MatcherContext.consumeMatchers();
+                boolean useVerificationMatchers = this.verificationMatchers != null && !this.verificationMatchers.isEmpty();
+                
                 List<InvocationRecord> invocations = MockRegistry.getInvocationRecords(mock, contextId);
-                int matchCount = 0;
+                List<InvocationRecord> matchingRecords = new ArrayList<>();
+                
                 for (InvocationRecord record : invocations) {
-                    if (record.getMethod().equals(method)) {
-                        // First determine what matchers to use - either from the record or verification
-                        List<ArgumentMatcher<?>> matchers = verificationMatchers;
-                        boolean useMatchers = matchers != null && !matchers.isEmpty();
-                        
-                        // Debug information
-                        System.out.println("[DEBUG] Verifying method: " + method.getName());
-                        System.out.println("[DEBUG] Args: " + java.util.Arrays.toString(args));
-                        System.out.println("[DEBUG] Actual: " + java.util.Arrays.toString(record.getArguments()));
-                        System.out.println("[DEBUG] Matchers: " + matchers);
-                        
-                        if (useMatchers) {
-                            boolean allMatch = true;
-                            Object[] actualArgs = record.getArguments();
-                            if (actualArgs.length != args.length) continue;
+                    if (!record.getMethod().equals(method)) continue;
+
+                    Object[] actualArgs = record.getArguments();
+                    boolean argumentsMatch = false;
+
+                    if (actualArgs.length != this.args.length) continue;
+
+                    if (useVerificationMatchers) {
+                        boolean allMatch = true;
+                        for (int i = 0; i < this.args.length; i++) {
+                            boolean hasMatcherForArg = i < this.verificationMatchers.size() && this.verificationMatchers.get(i) != null;
                             
-                            for (int i = 0; i < args.length; i++) {
-                                ArgumentMatcher<?> matcher = (i < matchers.size()) ? matchers.get(i) : null;
-                                if (matcher != null) {
-                                    // Use the matcher to compare arguments
-                                    if (!matcher.matches(actualArgs[i])) {
-                                        allMatch = false;
-                                        break;
-                                    }
-                                } else {
-                                    // Fall back to equality comparison if no matcher is provided
-                                    if (!Objects.deepEquals(args[i], actualArgs[i])) {
-                                        allMatch = false;
-                                        break;
-                                    }
+                            if (hasMatcherForArg) {
+                                @SuppressWarnings("unchecked")
+                                ArgumentMatcher<Object> objectMatcher = (ArgumentMatcher<Object>) this.verificationMatchers.get(i);
+                                if (!objectMatcher.matches(actualArgs[i])) {
+                                    allMatch = false;
+                                    break;
+                                }
+                            } else {
+                                // No matcher for this argument, use direct comparison
+                                if (!Objects.deepEquals(this.args[i], actualArgs[i])) {
+                                    allMatch = false;
+                                    break;
                                 }
                             }
-                            if (allMatch) matchCount++;
-                        } else if (Objects.deepEquals(record.getArguments(), args)) {
-                            // When no matchers, we just use direct equality comparison
-                            matchCount++;
                         }
+                        argumentsMatch = allMatch;
+                    } else {
+                        // No matchers, simply use deep equality for all arguments
+                        argumentsMatch = Objects.deepEquals(this.args, actualArgs);
+                    }
+
+                    if (argumentsMatch) {
+                        matchingRecords.add(record);
                     }
                 }
                 
-                // Apply the verification mode to check if the number of matches meets expectations
+                int matchCount = matchingRecords.size();
+
                 if (mode instanceof ContextualMocker.TimesVerificationMode) {
                     ((ContextualMocker.TimesVerificationMode) mode).verifyCount(matchCount, method, args);
                 } else if (mode instanceof ContextualMocker.AtLeastVerificationMode) {
                     ((ContextualMocker.AtLeastVerificationMode) mode).verifyCount(matchCount, method, args);
                 } else if (mode instanceof ContextualMocker.AtMostVerificationMode) {
                     ((ContextualMocker.AtMostVerificationMode) mode).verifyCount(matchCount, method, args);
+                } else {
+                }
+
+                for (InvocationRecord record : matchingRecords) {
+                    record.markVerified();
                 }
             }
             return getDefaultValue(method.getReturnType());

@@ -10,8 +10,11 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
+    private static final Logger logger = LoggerFactory.getLogger(VerificationMethodCaptureHandler.class);
     private final T mock;
     private final ContextualMocker.ContextualVerificationMode mode;
     private final ContextID contextId;
@@ -35,10 +38,10 @@ public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
             boolean hasVerificationMatchers = verificationMatchers != null && !verificationMatchers.isEmpty();
             
             List<InvocationRecord> invocations = MockRegistry.getInvocationRecords(mock, contextId);
-            System.out.println("[DEBUG] Found " + invocations.size() + " invocation records for mock in context " + contextId);
-            System.out.println("[DEBUG] Verifying method: " + method.getName());
-            System.out.println("[DEBUG] Args: " + java.util.Arrays.toString(args));
-            System.out.println("[DEBUG] Verification Matchers: " + verificationMatchers);
+            logger.debug("Found {} invocation records for mock in context {}", invocations.size(), contextId);
+            logger.debug("Verifying method: {}", method.getName());
+            logger.debug("Args: {}", java.util.Arrays.toString(args));
+            logger.debug("Verification Matchers: {}", verificationMatchers);
             
             int matchCount = 0;
             
@@ -46,14 +49,14 @@ public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
             for (InvocationRecord record : invocations) {
                 if (record.getMethod().equals(method)) {
                     Object[] recordArgs = record.getArguments();
-                    System.out.println("[DEBUG] Checking record args: " + java.util.Arrays.toString(recordArgs));
+                    logger.debug("Checking record args: {}", java.util.Arrays.toString(recordArgs));
                     
                     boolean matches = true;
                     
                     // Use verification matchers if we have them
                     if (hasVerificationMatchers) {
                         if (recordArgs.length != args.length) {
-                            continue; // Different arg count, can't match
+                            continue;
                         }
                         
                         for (int i = 0; i < args.length; i++) {
@@ -61,7 +64,7 @@ public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
                             ArgumentMatcher<?> matcher = (i < verificationMatchers.size()) ? verificationMatchers.get(i) : null;
                             
                             if (matcher != null) {
-                                System.out.println("[DEBUG] Using matcher at position " + i + ": " + matcher);
+                                logger.debug("Using matcher at position {}: {}", i, matcher);
                                 // Use the matcher for this argument
                                 if (!matcher.matches(recordArgs[i])) {
                                     matches = false;
@@ -82,12 +85,12 @@ public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
                     
                     if (matches) {
                         matchCount++;
-                        System.out.println("[DEBUG] Found matching invocation #" + matchCount);
+                        logger.debug("Found matching invocation #{}", matchCount);
                     }
                 }
             }
             
-            System.out.println("[DEBUG] Total matching invocations: " + matchCount);
+            logger.debug("Total matching invocations: {}", matchCount);
             
             // Apply the appropriate verification mode
             if (mode instanceof ContextualMocker.TimesVerificationMode) {

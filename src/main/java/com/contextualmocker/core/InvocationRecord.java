@@ -6,6 +6,7 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import com.contextualmocker.matchers.ArgumentMatcher;
 
@@ -18,6 +19,7 @@ public final class InvocationRecord {
     private final long threadId;
     private final boolean stubbing;
     private final List<ArgumentMatcher<?>> matchers;
+    private final AtomicBoolean verified = new AtomicBoolean(false);
 
     public InvocationRecord(
             Object mock,
@@ -36,7 +38,6 @@ public final class InvocationRecord {
         this.matchers = matchers;
     }
 
-    // Backward compatibility constructor
     public InvocationRecord(
             Object mock,
             Method method,
@@ -76,6 +77,14 @@ public final class InvocationRecord {
 
     public List<ArgumentMatcher<?>> getMatchers() {
         return matchers;
+    }
+
+    public boolean isVerified() {
+        return verified.get();
+    }
+
+    public void markVerified() {
+        this.verified.set(true);
     }
 
     @Override

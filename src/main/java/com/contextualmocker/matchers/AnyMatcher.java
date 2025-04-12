@@ -1,11 +1,12 @@
 package com.contextualmocker.matchers;
 
-class AnyMatcher<T> implements ArgumentMatcher<T> {
+public class AnyMatcher implements ArgumentMatcher<Object> {
+
     @Override
     public boolean matches(Object argument) {
         return true;
     }
-    
+
     @Override
     public String toString() {
         return "AnyMatcher";

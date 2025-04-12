@@ -13,6 +13,14 @@ import java.util.List;
 
 public class ContextualInvocationHandler implements InvocationHandler {
 
+    private static final ThreadLocal<List<ArgumentMatcher<?>>> lastInvokedMatchers = new ThreadLocal<>();
+
+    public static List<ArgumentMatcher<?>> consumeLastInvokedMatchers() {
+        List<ArgumentMatcher<?>> matchers = lastInvokedMatchers.get();
+        lastInvokedMatchers.remove();
+        return matchers;
+    }
+
     private static final ThreadLocal<Method> lastInvokedMethod = new ThreadLocal<>();
     private static final ThreadLocal<Object[]> lastInvokedArgs = new ThreadLocal<>();
     private static final ThreadLocal<Boolean> stubbingInProgress = ThreadLocal.withInitial(() -> false);
@@ -35,38 +43,36 @@ public class ContextualInvocationHandler implements InvocationHandler {
 
     @Override
     public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-        lastInvokedMethod.set(method);
-        lastInvokedArgs.set(args != null ? args.clone() : new Object[0]);
-
         if (method.getDeclaringClass() == Object.class) {
             return handleObjectMethod(proxy, method, args);
         }
 
+        lastInvokedMethod.set(method);
+        lastInvokedArgs.set(args != null ? args.clone() : new Object[0]);
+
         ContextID contextId = ContextHolder.getContext();
-        // Make a copy of the arguments to avoid modification issues
         Object[] safeArgs = args != null ? args.clone() : new Object[0];
-        
-        if (!stubbingInProgress.get() || contextId != null) {
-            // Save any matchers in the ThreadLocal context that were used to invoke this method
+
+        if (stubbingInProgress.get()) {
+            List<ArgumentMatcher<?>> matchers = MatcherContext.consumeMatchers();
+            lastInvokedMatchers.set(matchers);
+        } else {
             List<ArgumentMatcher<?>> matchers = MatcherContext.consumeMatchers();
             InvocationRecord record = new InvocationRecord(proxy, method, safeArgs, contextId, stubbingInProgress.get(), matchers);
             MockRegistry.recordInvocation(record);
         }
 
-        // Retrieve the current state and find a matching stubbing rule
-        Object currentState = MockRegistry.getState(proxy, contextId);
+        Object currentState = contextId != null ? MockRegistry.getState(proxy, contextId) : null;
         StubbingRule rule = MockRegistry.findStubbingRule(proxy, contextId, method, safeArgs, currentState);
 
         if (rule != null) {
-            // Apply the rule to get the result, and update state if needed
             Object result = rule.apply(contextId, proxy, method, safeArgs);
             Object nextState = rule.getNextState();
-            if (nextState != null) {
+            if (nextState != null && contextId != null) {
                 MockRegistry.setState(proxy, contextId, nextState);
             }
             return result;
         } else {
-            // No matching rule, return default value
             return getDefaultValue(method.getReturnType());
         }
     }
