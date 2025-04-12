@@ -1,7 +1,5 @@
 # ContextualMocker: A Parallel-Safe, Context-Aware Java Mocking Framework
 
-[![Build Status](https://github.com/<YOUR_USERNAME>/ContextualMocker/actions/workflows/build-test-package.yml/badge.svg)](https://github.com/<YOUR_USERNAME>/ContextualMocker/actions/workflows/build-test-package.yml) <!-- Placeholder: Replace with actual repo path -->
-
 ## Introduction
 
 ContextualMocker is a Java mocking framework designed specifically for testing modern, concurrent applications. It addresses the limitations of existing frameworks in handling shared mock instances safely under parallel load and provides first-class support for context-aware mocking and verification.
