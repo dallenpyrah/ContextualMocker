@@ -16,7 +16,7 @@ Welcome to the ContextualMocker project! This guide is designed to help new engi
 8. [Core Design Philosophies](#core-design-philosophies)
 9. [Further Reading](#further-reading)
 
----
+----
 
 ## Project Overview
 
