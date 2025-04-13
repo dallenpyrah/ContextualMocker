@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write 
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -28,23 +27,22 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        server-id: github 
-        settings-path: ${{ github.workspace }} 
-
-    - name: Set up GPG for signing
-      if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != ''
-      run: |
-        echo "$GPG_PRIVATE_KEY" | gpg --batch --import
-        echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-        gpg-connect-agent reloadagent /bye
-        echo "GPG Key Imported."
+        server-id: ossrh
+        server-username: MAVEN_USERNAME
+        server-password: MAVEN_PASSWORD
+        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+        gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
     - name: Package with Maven (Skip Tests)
       run: mvn -B package --file pom.xml -DskipTests
 
     - name: Publish to Maven Central
       if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != '' && env.OSSRH_USERNAME != '' && env.OSSRH_PASSWORD != ''
-      run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml --file pom.xml -DskipTests -Pcentral -Dgpg.passphrase="$GPG_PASSPHRASE"
+      env:
+        MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+        MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
+        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+      run: mvn deploy -DskipTests -Pcentral
 
     - name: Upload Release JAR artifact
       uses: actions/upload-artifact@v4
