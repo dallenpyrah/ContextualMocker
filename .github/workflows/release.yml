@@ -1,51 +1,28 @@
-name: Release and Publish
+name: Release
 
 on:
-  release:
-    types: [created]
+  push:
+    branches:
+      - main
 
 jobs:
-  publish:
-    name: Build, Package and Publish
+  release:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    env:
-      GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
-      GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-      OSSRH_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0 
+      - name: Check out Git repository
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 17
-      uses: actions/setup-java@v4
-      with:
-        java-version: '17'
-        distribution: 'temurin'
-        server-id: ossrh
-        server-username: MAVEN_USERNAME
-        server-password: MAVEN_PASSWORD
-        gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-        gpg-passphrase: MAVEN_GPG_PASSPHRASE
+      - name: Install Java and Maven
+        uses: actions/setup-java@v3
+        with:
+          java-version: 17
+          distribution: 'temurin'
+          cache: 'maven'
 
-    - name: Package with Maven (Skip Tests)
-      run: mvn -B package --file pom.xml -DskipTests
-
-    - name: Publish to Maven Central
-      if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != '' && env.OSSRH_USERNAME != '' && env.OSSRH_PASSWORD != ''
-      env:
-        MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-        MAVEN_PASSWORD: ${{ secrets.OSSRH_PASSWORD }}
-        MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-      run: mvn deploy -DskipTests -Pcentral
-
-    - name: Upload Release JAR artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-jar-${{ github.event.release.tag_name }} 
-        path: target/*.jar 
+      - name: Release Maven package
+        uses: WasiqB/maven-publish-action@v1
+        with:
+          gpg_private_key: ${{ secrets.gpg_private_key }}
+          gpg_passphrase: ${{ secrets.gpg_passphrase }}
+          nexus_username: ${{ secrets.nexus_username }}
+          nexus_password: ${{ secrets.nexus_password }}
