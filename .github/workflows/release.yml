@@ -42,9 +42,6 @@ jobs:
     - name: Package with Maven (Skip Tests)
       run: mvn -B package --file pom.xml -DskipTests
 
-    - name: Publish to GitHub Packages
-      run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml --file pom.xml -DskipTests -Pgithub
-
     - name: Publish to Maven Central
       if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != '' && env.OSSRH_USERNAME != '' && env.OSSRH_PASSWORD != ''
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml --file pom.xml -DskipTests -Pcentral -Dgpg.passphrase="$GPG_PASSPHRASE"
