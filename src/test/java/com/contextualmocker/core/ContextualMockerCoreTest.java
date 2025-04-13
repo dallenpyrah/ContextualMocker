@@ -150,7 +150,8 @@ public class ContextualMockerCoreTest {
 
 
        ContextHolder.clearContext();
-   }
+    }
+   
 
    // --- Argument Matcher Edge Case Tests (Plan 308-320) ---
 
@@ -252,7 +253,7 @@ public class ContextualMockerCoreTest {
         ContextHolder.clearContext();
     }
 
-     @Test
+    @Test
     void testVerificationIgnoresStubbingInvocations() {
         ContextHolder.setContext(context1);
 
@@ -283,5 +284,12 @@ public class ContextualMockerCoreTest {
 
         ContextHolder.clearContext();
     }
-
+    @Test
+    void testAnyMatcherMatchesAndToString() {
+        com.contextualmocker.matchers.AnyMatcher matcher = new com.contextualmocker.matchers.AnyMatcher();
+        assertTrue(matcher.matches("anything"));
+        assertTrue(matcher.matches(123));
+        assertTrue(matcher.matches(null));
+        assertNotNull(matcher.toString());
+    }
 }
