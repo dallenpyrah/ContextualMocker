@@ -28,7 +28,17 @@ ContextualMocker tackles these challenges with:
 
 ContextualMocker enables thread-safe, context-aware mocking for concurrent Java applications. The typical usage pattern is:
 
-1. **Create a mock for your interface or class:**
+1. **Add the Maven Dependency:**
+   Include the following dependency in your `pom.xml`:
+   ```xml
+   <dependency>
+       <groupId>io.github.dallenpyrah</groupId>
+       <artifactId>contextual-mocker</artifactId>
+       <version>1.0.0</version> <!-- Use the latest version -->
+   </dependency>
+   ```
+
+2. **Create a mock for your interface or class:**
     ```java
     // Mocking an interface
     MyService mockInterface = ContextualMocker.mock(MyService.class);
