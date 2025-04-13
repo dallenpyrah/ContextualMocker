@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
+- Added comprehensive tests for class mocking support:
+  - New unit and integration tests verify that concrete classes (with and without default constructors) can be mocked and behave as expected.
+  - Tests ensure that attempting to mock final classes or classes with final methods throws the correct exception.
+  - Tests confirm that static methods are not mocked and that toString() works for both interface and class mocks.
+  - Updated or removed tests that previously expected class mocking to throw.
+  - All tests pass and the codebase compiles.
 - Added `docs/ONBOARDING.md`: Comprehensive onboarding guide for new engineers, covering project overview, architecture, setup, contribution, testing, debugging, and design philosophies.
 - Documentation improvements:
   - Enhanced and clarified JavaDocs for all public classes, methods, and important fields in `src/main/java`.

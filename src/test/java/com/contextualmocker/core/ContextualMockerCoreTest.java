@@ -50,13 +50,6 @@ public class ContextualMockerCoreTest {
 
     // Assuming mocking concrete classes is not supported or throws specific exception
     // based on plan line 228 mentioning only interfaces. Adjust if implementation differs.
-   @Test
-   void testMockConcreteClassThrowsException() {
-       // Based on ContextualMocker.mock() implementation (lines 87-89)
-       assertThrows(IllegalArgumentException.class, () -> {
-            mock(SimpleServiceImpl.class);
-       }, "Mocking concrete classes should throw IllegalArgumentException in v1");
-   }
 
     @Test
     void testMockInterfaceWithGenerics() {

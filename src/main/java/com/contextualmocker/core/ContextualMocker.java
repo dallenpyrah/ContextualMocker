@@ -73,7 +73,14 @@ public final class ContextualMocker {
     /**
      * Creates a mock instance of the given class or interface.
      * <p>
-     * Currently, only interfaces are fully supported.
+     * Supports mocking of interfaces and non-final, non-abstract classes.
+     * <p>
+     * Limitations:
+     * <ul>
+     *   <li>Cannot mock final classes or classes with final methods.</li>
+     *   <li>All constructors must be accessible. If no default constructor is present, the first available constructor will be used with default values for parameters.</li>
+     *   <li>Static methods are not mocked.</li>
+     * </ul>
      *
      * @param <T> The type of the class/interface to mock.
      * @param classToMock The class or interface to mock.
@@ -84,26 +91,83 @@ public final class ContextualMocker {
     @SuppressWarnings("unchecked")
     public static <T> T mock(Class<T> classToMock) {
         Objects.requireNonNull(classToMock, "Class to mock cannot be null");
-        if (!classToMock.isInterface()) {
-            throw new IllegalArgumentException("ContextualMocker v1.0 currently only supports mocking interfaces. Cannot mock: " + classToMock.getName());
-        }
+        InvocationHandler handler = new ContextualInvocationHandler();
 
-        try {
-            InvocationHandler handler = new ContextualInvocationHandler();
+        if (classToMock.isInterface()) {
+            // Interface mocking (existing logic)
+            try {
+                return (T) new ByteBuddy()
+                        .subclass(Object.class)
+                        .implement(classToMock)
+                        .method(ElementMatchers.any())
+                        .intercept(InvocationHandlerAdapter.of(handler))
+                        .make()
+                        .load(classToMock.getClassLoader())
+                        .getLoaded()
+                        .getDeclaredConstructor()
+                        .newInstance();
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create mock for " + classToMock.getName(), e);
+            }
+        } else {
+            // Class mocking
+            if (java.lang.reflect.Modifier.isFinal(classToMock.getModifiers())) {
+                throw new IllegalArgumentException("Cannot mock final classes: " + classToMock.getName());
+            }
+            // Check for final methods
+            for (java.lang.reflect.Method m : classToMock.getDeclaredMethods()) {
+                if (java.lang.reflect.Modifier.isFinal(m.getModifiers())) {
+                    throw new IllegalArgumentException("Cannot mock classes with final methods: " + classToMock.getName() + ", method: " + m.getName());
+                }
+            }
+            try {
+                net.bytebuddy.dynamic.DynamicType.Builder<? extends T> builder = new ByteBuddy()
+                        .subclass(classToMock)
+                        .method(ElementMatchers.not(ElementMatchers.isFinal())
+                                .and(ElementMatchers.not(ElementMatchers.isStatic()))
+                                .and(ElementMatchers.not(ElementMatchers.isPrivate())))
+                        .intercept(InvocationHandlerAdapter.of(handler));
 
-            return (T) new ByteBuddy()
-                    .subclass(Object.class)
-                    .implement(classToMock)
-                    .method(ElementMatchers.any())
-                    .intercept(InvocationHandlerAdapter.of(handler))
-                    .make()
-                    .load(classToMock.getClassLoader())
-                    .getLoaded()
-                    .getDeclaredConstructor()
-                    .newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create mock for " + classToMock.getName(), e);
+                Class<? extends T> mockClass = builder
+                        .make()
+                        .load(classToMock.getClassLoader())
+                        .getLoaded();
+
+                // Try default constructor first
+                try {
+                    return mockClass.getDeclaredConstructor().newInstance();
+                } catch (NoSuchMethodException e) {
+                    // No default constructor, try to use the first available constructor with default values
+                    java.lang.reflect.Constructor<?>[] ctors = mockClass.getDeclaredConstructors();
+                    if (ctors.length == 0) {
+                        throw new RuntimeException("No accessible constructor found for " + classToMock.getName());
+                    }
+                    java.lang.reflect.Constructor<?> ctor = ctors[0];
+                    Class<?>[] paramTypes = ctor.getParameterTypes();
+                    Object[] params = new Object[paramTypes.length];
+                    for (int i = 0; i < paramTypes.length; i++) {
+                        params[i] = getDefaultValue(paramTypes[i]);
+                    }
+                    return (T) ctor.newInstance(params);
+                }
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to create mock for class " + classToMock.getName(), e);
+            }
         }
+    }
+
+    // Helper for default values for constructor params
+    private static Object getDefaultValue(Class<?> type) {
+        if (!type.isPrimitive()) return null;
+        if (type == boolean.class) return false;
+        if (type == byte.class) return (byte) 0;
+        if (type == short.class) return (short) 0;
+        if (type == int.class) return 0;
+        if (type == long.class) return 0L;
+        if (type == float.class) return 0.0f;
+        if (type == double.class) return 0.0d;
+        if (type == char.class) return '\u0000';
+        return null;
     }
 
     /**

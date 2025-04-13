@@ -84,7 +84,16 @@ public class ContextualInvocationHandler implements InvocationHandler {
             case "hashCode":
                 return System.identityHashCode(proxy);
             case "toString":
-                return "ContextualMock<" + proxy.getClass().getInterfaces()[0].getSimpleName() + ">@" + Integer.toHexString(System.identityHashCode(proxy));
+                Class<?>[] interfaces = proxy.getClass().getInterfaces();
+                String typeName;
+                if (interfaces.length > 0) {
+                    typeName = interfaces[0].getSimpleName();
+                } else {
+                    typeName = proxy.getClass().getSuperclass() != null
+                        ? proxy.getClass().getSuperclass().getSimpleName()
+                        : proxy.getClass().getSimpleName();
+                }
+                return "ContextualMock<" + typeName + ">@" + Integer.toHexString(System.identityHashCode(proxy));
             default:
                 throw new UnsupportedOperationException("Unsupported Object method: " + method.getName());
         }
