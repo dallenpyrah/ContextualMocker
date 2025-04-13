@@ -210,7 +210,7 @@ public final class MockRegistry {
 
         List<InvocationRecord> records = recordsDeque.stream()
                 .filter(r -> !r.isStubbing())
-                .toList();
+                .collect(Collectors.toList());
         if (logger.isDebugEnabled()) {
             logger.debug("Retrieved {} non-stubbing invocation records for context: {}", records.size(), contextId);
         }

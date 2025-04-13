@@ -215,7 +215,7 @@ public final class ContextualMocker {
         List<InvocationRecord> unverifiedInvocations = MockRegistry.getInvocationRecords(mock, contextId)
                 .stream()
                 .filter(record -> !record.isVerified())
-                .toList();
+                .collect(Collectors.toList());
 
         if (!unverifiedInvocations.isEmpty()) {
             String details = unverifiedInvocations.stream()
