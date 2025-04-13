@@ -19,15 +19,19 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
+          cache: maven
           server-id: ossrh
-          server-username: OSSRH_USERNAME
-          server-password: OSSRH_TOKEN
+          server-username: ${{ secrets.OSSRH_USERNAME }}
+          server-password: ${{ secrets.OSSRH_TOKEN }}
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
-          gpg-passphrase: GPG_PASSPHRASE
+          gpg-passphrase: ${{ secrets.GPG_PASSPHRASE }}
+
+      - name: Build and Test
+        run: mvn clean verify --batch-mode -DskipTests
 
       - name: Publish to Maven Central
         run: mvn clean deploy --batch-mode -Pcentral -DskipTests
         env:
-          OSSRH_USERNAME: ${{ secrets.OSSRH_USERNAME }}
-          OSSRH_TOKEN: ${{ secrets.OSSRH_TOKEN }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
+          MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
