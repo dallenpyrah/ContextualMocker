@@ -1,46 +1,32 @@
-name: Publish to Maven Central
-
+name: release-to-maven-central
 on:
   push:
-    branches: [main]
-  release:
-    types: [created]
-
+    branches:
+      - main
 jobs:
   publish:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - run: echo "Will start a Maven Central upload with version ${{ github.event.inputs.releaseversion }}"
 
-      - name: Set up Java
-        uses: actions/setup-java@v3
+      - uses: actions/checkout@v2
+
+      - name: Set up Maven Central Repository
+        uses: actions/setup-java@v1
         with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: maven
+          java-version: 11
+          server-id: oss.sonatype.org
+          server-username: MAVEN_USERNAME
+          server-password: MAVEN_PASSWORD
+          gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
+          gpg-passphrase: MAVEN_GPG_PASSPHRASE
 
-      - name: Import GPG key
-        run: |
-          echo "${{ secrets.GPG_PRIVATE_KEY }}" | base64 --decode | gpg --batch --import
-          gpg --list-secret-keys --keyid-format LONG
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
-          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
-          gpg-connect-agent reloadagent /bye
+      - name: Set projects Maven version to GitHub Action GUI set version
+        run: mvn versions:set "-DnewVersion=${{ github.event.inputs.releaseversion }}"
 
-      - name: Build and Test
-        run: mvn clean verify --batch-mode -DskipTests
-
-      - name: Publish to Maven Central
-        run: |
-          mvn clean deploy --batch-mode -Pcentral -DskipTests \
-          -Dgpg.passphrase="${{ secrets.GPG_PASSPHRASE }}" \
-          -DaltDeploymentRepository=ossrh::default::https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/ \
-          -DrepositoryId=ossrh \
-          -DserverId=ossrh \
-          -Dusername=${{ secrets.OSSRH_USERNAME }} \
-          -Dpassword=${{ secrets.OSSRH_TOKEN }}
+      - name: Publish package
+        run: mvn --batch-mode clean deploy -P central-deploy -DskipTests=true
         env:
           MAVEN_USERNAME: ${{ secrets.OSSRH_USERNAME }}
           MAVEN_PASSWORD: ${{ secrets.OSSRH_TOKEN }}
+          MAVEN_GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
