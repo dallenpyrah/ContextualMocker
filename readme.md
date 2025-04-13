@@ -1,7 +1,3 @@
-Here is the full, updated README.md content reflecting support for mocking both interfaces and concrete (non-final) classes, with all required limitations, caveats, and usage updates. Please copy and replace your README.md with the following content:
-
----
-
 # ContextualMocker: A Parallel-Safe, Context-Aware Java Mocking Framework
 
 ## Introduction
