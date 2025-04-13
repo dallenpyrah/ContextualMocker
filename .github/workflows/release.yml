@@ -10,8 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      packages: write # Needed for GitHub Packages
-    # Define secrets as environment variables at the job level
+      packages: write 
     env:
       GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
       GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
@@ -21,7 +20,6 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      # Fetch tags to ensure the version is correct based on the release tag
       with:
         fetch-depth: 0 
 
@@ -30,11 +28,10 @@ jobs:
       with:
         java-version: '17'
         distribution: 'temurin'
-        server-id: github # For GitHub Packages auth
-        settings-path: ${{ github.workspace }} # Writes settings.xml to workspace root
+        server-id: github 
+        settings-path: ${{ github.workspace }} 
 
     - name: Set up GPG for signing
-      # Check the environment variables now
       if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != ''
       run: |
         echo "$GPG_PRIVATE_KEY" | gpg --batch --import
@@ -43,16 +40,13 @@ jobs:
         echo "GPG Key Imported."
 
     - name: Package with Maven (Skip Tests)
-      # Package assumes the version in pom.xml is correct for the release tag
       run: mvn -B package --file pom.xml -DskipTests
 
     - name: Publish to GitHub Packages
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml --file pom.xml -DskipTests -Pgithub
 
     - name: Publish to Maven Central
-      # Check the environment variables now
       if: env.GPG_PRIVATE_KEY != '' && env.GPG_PASSPHRASE != '' && env.OSSRH_USERNAME != '' && env.OSSRH_PASSWORD != ''
-      # Passphrase still needed for the command line, other env vars inherited
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml --file pom.xml -DskipTests -Pcentral -Dgpg.passphrase="$GPG_PASSPHRASE"
 
     - name: Upload Release JAR artifact
