@@ -46,7 +46,7 @@
         <dependency>
             <groupId>net.bytebuddy</groupId>
             <artifactId>byte-buddy</artifactId>
-            <version>1.14.2</version>
+            <version>1.14.17</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
@@ -99,6 +99,11 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.2.5</version>
+                <configuration>
+                    <parallel>methods</parallel>
+                    <perCoreThreadCount>true</perCoreThreadCount>
+                    <threadCountMethods>2</threadCountMethods>
+                </configuration>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>

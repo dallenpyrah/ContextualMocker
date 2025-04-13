@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
 import java.util.List;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -12,7 +13,7 @@ public class InvocationRecordTest {
     @Test
     void gettersReturnExpectedValues() throws Exception {
         Object mock = new Object();
-        ContextID contextId = new StringContextId("ctx");
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
         Method method = Object.class.getMethod("toString");
         Object[] args = new Object[] { "a" };
         List matchers = List.of();

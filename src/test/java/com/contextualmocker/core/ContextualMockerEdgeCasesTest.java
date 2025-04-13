@@ -2,43 +2,43 @@ package com.contextualmocker.core;
 
 import com.contextualmocker.matchers.ArgumentMatchers;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.lang.ref.WeakReference;
 import java.util.concurrent.TimeUnit;
+import java.util.UUID;
 
 import static com.contextualmocker.core.ContextualMocker.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContextualMockerEdgeCasesTest {
 
-    private static final ContextID CTX1 = new StringContextId("CTX1");
-    private static final ContextID CTX2 = new StringContextId("CTX2");
+    private static final Service mockService = mock(Service.class);
 
-    @AfterEach
-    void cleanup() {
+    @BeforeEach
+    void setUp() {
         ContextHolder.clearContext();
     }
 
-    // --- Error Handling & API Misuse ---
-
+    @AfterEach
+    void tearDown() {
+        ContextHolder.clearContext();
+    }
 
     @Test
     void stubbingWithNullContextThrows() {
-        Service mock = mock(Service.class);
         assertThrows(NullPointerException.class, () -> {
-            given(mock).forContext(null).when(() -> mock.process("foo")).thenReturn("X");
+            given(mockService).forContext(null).when(() -> mockService.process("foo")).thenReturn("X");
         });
     }
 
     @Test
     void verifyWithNullContextThrows() {
-        Service mock = mock(Service.class);
         assertThrows(NullPointerException.class, () -> {
-            verify(mock).forContext(null).verify(times(1)).process("foo");
+            verify(mockService).forContext(null).verify(times(1)).process("foo");
         });
     }
-
 
     @Test
     void givenWithNullMockThrows() {
@@ -63,40 +63,34 @@ class ContextualMockerEdgeCasesTest {
 
     @Test
     void forContextWithInvalidContextIdTypeThrows() {
-        Service mock = mock(Service.class);
         Object invalidContext = new Object();
         assertThrows(ClassCastException.class, () -> {
-            verify(mock).forContext((ContextID) invalidContext).verify(times(1)).process("foo");
+            verify(mockService).forContext((ContextID) invalidContext).verify(times(1)).process("foo");
         });
     }
 
     @Test
     void usingArgumentMatcherForSingleArgumentWorks() {
-        Service mock = mock(Service.class);
-        given(mock).forContext(CTX1).when(() -> mock.process(ArgumentMatchers.any())).thenReturn("matched");
-        ContextHolder.setContext(CTX1);
-        assertEquals("matched", mock.process("anything"));
+        ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        given(mockService).forContext(ctx).when(() -> mockService.process(ArgumentMatchers.any())).thenReturn("matched");
+        ContextHolder.setContext(ctx);
+        assertEquals("matched", mockService.process("anything"));
     }
 
     @Test
     void callingMockMethodOutsideStubbingOrVerificationThrows() {
-        Service mock = mock(Service.class);
-        // No stubbing or verification context
-        assertThrows(IllegalStateException.class, () -> mock.process("foo"));
+        assertThrows(IllegalStateException.class, () -> mockService.process("foo"));
     }
-
-    // --- Resource Cleanup & Memory Management ---
 
     @Test
     void clearContextCleansUpInvocations() {
-        Service mock = mock(Service.class);
-        ContextHolder.setContext(CTX1);
-        mock.process("foo");
+        ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        ContextHolder.setContext(ctx);
+        mockService.process("foo");
         ContextHolder.clearContext();
-        // After clearing, invocations for CTX1 should be gone
-        ContextHolder.setContext(CTX1);
+        ContextHolder.setContext(ctx);
         assertThrows(AssertionError.class, () -> {
-            verify(mock).forContext(CTX1).verify(times(1)).process("foo");
+            verify(mockService).forContext(ctx).verify(times(1)).process("foo");
         });
     }
 
@@ -104,15 +98,14 @@ class ContextualMockerEdgeCasesTest {
     void mockIsGarbageCollectedWhenNoStrongReferences() throws Exception {
         WeakReference<Service> ref;
         {
-            Service mock = mock(Service.class);
-            ref = new WeakReference<>(mock);
+            Service localMock = mock(Service.class);
+            ref = new WeakReference<>(localMock);
         }
-        // Try to force GC
         for (int i = 0; i < 10 && ref.get() != null; i++) {
             System.gc();
             TimeUnit.MILLISECONDS.sleep(50);
         }
-        assertNull(ref.get(), "Mock should be garbage collected when no strong references exist");
+        assertNull(ref.get());
     }
 
 }

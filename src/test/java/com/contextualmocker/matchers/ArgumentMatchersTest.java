@@ -5,13 +5,14 @@ import com.contextualmocker.core.StringContextId;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ArgumentMatchersTest {
 
     @BeforeEach
     void setUp() {
-        ContextHolder.setContext(new StringContextId("test-context"));
+        ContextHolder.setContext(new StringContextId(UUID.randomUUID().toString()));
     }
 
     @AfterEach

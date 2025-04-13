@@ -7,11 +7,13 @@ import com.contextualmocker.core.InvocationRecord;
 import com.contextualmocker.core.MockRegistry;
 import com.contextualmocker.matchers.ArgumentMatcher;
 import com.contextualmocker.matchers.MatcherContext;
+import com.contextualmocker.core.StringContextId;
 import org.junit.jupiter.api.*;
 import org.mockito.Mockito;
 
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -22,25 +24,25 @@ class VerificationMethodCaptureHandlerTest {
         void foo() {}
     }
 
-    private Dummy mock;
-    private ContextualMocker.ContextualVerificationMode mode;
-    private ContextID contextId;
-
     @BeforeEach
     void setUp() {
-        mock = new Dummy();
-        mode = mock(ContextualMocker.TimesVerificationMode.class);
-        contextId = mock(ContextID.class);
-        // Clear static state if needed
+        ContextHolder.clearContext();
+    }
+
+    @AfterEach
+    void tearDown() {
+        ContextHolder.clearContext();
     }
 
     @Test
     void testInvoke_NoInvocations_DoesNotThrow() throws Throwable {
-        // Arrange
+        Dummy mock = new Dummy();
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
+        ContextualMocker.ContextualVerificationMode mode = mock(ContextualMocker.ContextualVerificationMode.class);
+
         Method method = Dummy.class.getDeclaredMethod("foo");
         Object[] args = new Object[0];
 
-        // Mock static
         try (var mockStatic = mockStatic(MockRegistry.class)) {
             mockStatic.when(() -> MockRegistry.getInvocationRecords(any(), any()))
                     .thenReturn(Collections.emptyList());
@@ -48,7 +50,6 @@ class VerificationMethodCaptureHandlerTest {
             VerificationMethodCaptureHandler<Dummy> handler =
                     new VerificationMethodCaptureHandler<>(mock, mode, contextId);
 
-            // Act & Assert
             ContextHolder.setContext(contextId);
             assertDoesNotThrow(() -> handler.invoke(mock, method, args));
         }
@@ -56,6 +57,8 @@ class VerificationMethodCaptureHandlerTest {
 
     @Test
     void testInvoke_WithMatchingInvocation_TimesVerificationMode() throws Throwable {
+        Dummy mock = new Dummy();
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
         Method method = Dummy.class.getDeclaredMethod("foo");
         Object[] args = new Object[0];
 
@@ -71,8 +74,7 @@ class VerificationMethodCaptureHandlerTest {
 
             VerificationMethodCaptureHandler<Dummy> handler =
                     new VerificationMethodCaptureHandler<>(mock, timesMode, contextId);
-ContextHolder.setContext(contextId);
-handler.invoke(mock, method, args);
+            ContextHolder.setContext(contextId);
             handler.invoke(mock, method, args);
 
             verify(timesMode).verifyCount(eq(1), eq(method), eq(args));
@@ -81,6 +83,8 @@ handler.invoke(mock, method, args);
 
     @Test
     void testInvoke_WithNonMatchingInvocation_AtLeastVerificationMode() throws Throwable {
+        Dummy mock = new Dummy();
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
         Method method = Dummy.class.getDeclaredMethod("foo");
         Object[] args = new Object[] { "foo" };
 
@@ -96,8 +100,7 @@ handler.invoke(mock, method, args);
 
             VerificationMethodCaptureHandler<Dummy> handler =
                     new VerificationMethodCaptureHandler<>(mock, atLeastMode, contextId);
-ContextHolder.setContext(contextId);
-handler.invoke(mock, method, args);
+            ContextHolder.setContext(contextId);
             handler.invoke(mock, method, args);
 
             verify(atLeastMode).verifyCount(eq(0), eq(method), eq(args));
@@ -106,6 +109,10 @@ handler.invoke(mock, method, args);
 
     @Test
     void testGetDefaultValue_PrimitivesAndReference() throws Exception {
+        Dummy mock = new Dummy();
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
+        ContextualMocker.ContextualVerificationMode mode = mock(ContextualMocker.ContextualVerificationMode.class);
+
         VerificationMethodCaptureHandler<?> handler =
                 new VerificationMethodCaptureHandler<>(mock, mode, contextId);
 

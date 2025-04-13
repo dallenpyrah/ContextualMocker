@@ -1,45 +1,59 @@
 package com.contextualmocker.core;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.UUID;
+
+import static com.contextualmocker.core.ContextualMocker.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ContextualMockerVerificationModesTest {
 
+    private static final Service mockService = mock(Service.class);
+
+    @BeforeEach
+    void setUp() {
+        ContextHolder.clearContext();
+    }
+
+    @AfterEach
+    void tearDown() {
+        ContextHolder.clearContext();
+    }
+
     @Test
     void atLeastOnceReturnsVerificationMode() {
-        ContextualMocker.ContextualVerificationMode mode = ContextualMocker.atLeastOnce();
+        ContextualMocker.ContextualVerificationMode mode = atLeastOnce();
         assertNotNull(mode);
         assertTrue(mode instanceof ContextualMocker.ContextualVerificationMode);
     }
 
     @Test
     void atLeastReturnsVerificationMode() {
-        ContextualMocker.ContextualVerificationMode mode = ContextualMocker.atLeast(2);
+        ContextualMocker.ContextualVerificationMode mode = atLeast(2);
         assertNotNull(mode);
         assertTrue(mode instanceof ContextualMocker.ContextualVerificationMode);
     }
 
     @Test
     void atMostReturnsVerificationMode() {
-        ContextualMocker.ContextualVerificationMode mode = ContextualMocker.atMost(3);
+        ContextualMocker.ContextualVerificationMode mode = atMost(3);
         assertNotNull(mode);
         assertTrue(mode instanceof ContextualMocker.ContextualVerificationMode);
     }
 
     @Test
     void verifyNoInteractionsDoesNotThrowOnUnusedMock() {
-        Service mock = ContextualMocker.mock(Service.class);
-        ContextID contextId = new StringContextId("test-context");
-        assertDoesNotThrow(() -> ContextualMocker.verifyNoInteractions(mock, contextId));
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
+        assertDoesNotThrow(() -> verifyNoInteractions(mockService, contextId));
     }
 
     @Test
     void verifyNoInteractionsThrowsOnUsedMock() {
-        Service mock = ContextualMocker.mock(Service.class);
-        ContextID contextId = new StringContextId("test-context");
+        ContextID contextId = new StringContextId(UUID.randomUUID().toString());
         ContextHolder.setContext(contextId);
-        mock.process("test"); // use a real Service method to ensure interaction is recorded
-        assertThrows(AssertionError.class, () -> ContextualMocker.verifyNoInteractions(mock, contextId));
-        ContextHolder.clearContext();
+        mockService.process("test");
+        assertThrows(AssertionError.class, () -> verifyNoInteractions(mockService, contextId));
     }
 }

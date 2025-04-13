@@ -1,44 +1,55 @@
 package com.contextualmocker.core;
 
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.UUID;
 
 import static com.contextualmocker.core.ContextualMocker.*;
 import static org.junit.jupiter.api.Assertions.*;
 
 class ContextualMockerClassMockingTest {
 
+    private static final SimpleServiceImpl mockSimpleService = mock(SimpleServiceImpl.class);
+    private static final ClassWithNoDefaultConstructor mockNoDefaultConstructor = mock(ClassWithNoDefaultConstructor.class);
+    private static final SimpleService mockSimpleInterface = mock(SimpleService.class);
+    private static final ClassWithStaticMethod mockStaticMethodClass = mock(ClassWithStaticMethod.class);
+
+    @BeforeEach
+    void setUp() {
+        ContextHolder.clearContext();
+    }
+
+    @AfterEach
+    void tearDown() {
+        ContextHolder.clearContext();
+    }
+
     @Test
     void canMockConcreteClassWithDefaultConstructor() {
-        SimpleServiceImpl mock = mock(SimpleServiceImpl.class);
-        given(mock).forContext(new StringContextId("CTX")).when(() -> mock.greet("Alice")).thenReturn("Hi Alice");
-        ContextHolder.setContext(new StringContextId("CTX"));
-        assertEquals("Hi Alice", mock.greet("Alice"));
-        // Default behavior for unstubbed method
-        assertNull(mock.getList(5));
+        ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        given(mockSimpleService).forContext(ctx).when(() -> mockSimpleService.greet("Alice")).thenReturn("Hi Alice");
+        ContextHolder.setContext(ctx);
+        assertEquals("Hi Alice", mockSimpleService.greet("Alice"));
+        assertNull(mockSimpleService.getList(5));
     }
 
     @Test
     void canMockClassWithNoDefaultConstructor() {
-        ClassWithNoDefaultConstructor mock = mock(ClassWithNoDefaultConstructor.class);
-        given(mock).forContext(new StringContextId("CTX")).when(() -> mock.greet("Bob")).thenReturn("Hello Bob");
-        ContextHolder.setContext(new StringContextId("CTX"));
-        assertEquals("Hello Bob", mock.greet("Bob"));
-        // Default behavior for unstubbed method
-        assertNull(mock.getValue());
+        ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        given(mockNoDefaultConstructor).forContext(ctx).when(() -> mockNoDefaultConstructor.greet("Bob")).thenReturn("Hello Bob");
+        ContextHolder.setContext(ctx);
+        assertEquals("Hello Bob", mockNoDefaultConstructor.greet("Bob"));
+        assertNull(mockNoDefaultConstructor.getValue());
     }
 
     @Test
     void toStringWorksForClassAndInterfaceMocks() {
-        SimpleServiceImpl classMock = mock(SimpleServiceImpl.class);
-        SimpleService interfaceMock = mock(SimpleService.class);
-        assertNotNull(classMock.toString());
-        assertNotNull(interfaceMock.toString());
-        assertTrue(classMock.toString().contains("Mock") || classMock.toString().contains("mock"));
-        assertTrue(interfaceMock.toString().contains("Mock") || interfaceMock.toString().contains("mock"));
+        assertNotNull(mockSimpleService.toString());
+        assertNotNull(mockSimpleInterface.toString());
+        assertTrue(mockSimpleService.toString().contains("Mock") || mockSimpleService.toString().contains("mock"));
+        assertTrue(mockSimpleInterface.toString().contains("Mock") || mockSimpleInterface.toString().contains("mock"));
     }
-
-    // NOTE: Context-aware stubbing and verification for class mocks is not reliably supported
-    // due to proxying limitations. This is covered for interfaces in other tests.
 
     @Test
     void cannotMockFinalClass() {
@@ -52,12 +63,10 @@ class ContextualMockerClassMockingTest {
 
     @Test
     void staticMethodsAreNotMocked() {
-        ClassWithStaticMethod mock = mock(ClassWithStaticMethod.class);
-        // Instance method can be stubbed
-        given(mock).forContext(new StringContextId("CTX")).when(() -> mock.sayHello()).thenReturn("Mocked");
-        ContextHolder.setContext(new StringContextId("CTX"));
-        assertEquals("Mocked", mock.sayHello());
-        // Static method is not mocked
+        ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        given(mockStaticMethodClass).forContext(ctx).when(() -> mockStaticMethodClass.sayHello()).thenReturn("Mocked");
+        ContextHolder.setContext(ctx);
+        assertEquals("Mocked", mockStaticMethodClass.sayHello());
         assertEquals("Static", ClassWithStaticMethod.staticMethod());
     }
 }

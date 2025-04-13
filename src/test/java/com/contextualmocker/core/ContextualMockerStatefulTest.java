@@ -6,21 +6,19 @@ import org.junit.jupiter.api.AfterEach;
 
 import java.util.concurrent.*;
 import java.util.*;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static com.contextualmocker.core.ContextualMocker.*;
 
 public class ContextualMockerStatefulTest {
 
-    private final ContextID context1 = new StringContextId("context1");
-    private final ContextID context2 = new StringContextId("context2");
-    private SimpleService mockService;
+    private static final SimpleService mockService = mock(SimpleService.class);
 
     enum State { LOGGED_OUT, LOGGED_IN }
 
     @BeforeEach
     void setUp() {
-        mockService = mock(SimpleService.class);
         ContextHolder.clearContext();
     }
 
@@ -31,9 +29,9 @@ public class ContextualMockerStatefulTest {
 
     @Test
     void testWhenStateIsAndWillSetStateTo() {
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextHolder.setContext(context1);
 
-        // Initial state is null
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("login"))
@@ -54,21 +52,17 @@ public class ContextualMockerStatefulTest {
             .whenStateIs(State.LOGGED_IN)
             .thenReturn("Here is your data");
 
-        // Login
         assertEquals("Logged in", mockService.greet("login"));
-        // Now state should be LOGGED_IN
         assertEquals("Here is your data", mockService.greet("data"));
-        // Logout
         assertEquals("Logged out", mockService.greet("logout"));
-        // Now state should be LOGGED_OUT
         assertNull(mockService.greet("data"));
-
-        ContextHolder.clearContext();
     }
 
     @Test
     void testStateIsolationBetweenContexts() {
-        // Context 1 logs in, context 2 remains logged out
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
+        ContextID context2 = new StringContextId(UUID.randomUUID().toString());
+
         ContextHolder.setContext(context1);
         given(mockService)
             .forContext(context1)
@@ -79,9 +73,8 @@ public class ContextualMockerStatefulTest {
         mockService.greet("login");
 
         ContextHolder.setContext(context2);
-        // Should not be logged in in context2
         assertNull(mockService.greet("data"));
-        // Logging in context2
+
         given(mockService)
             .forContext(context2)
             .when(() -> mockService.greet("login"))
@@ -89,13 +82,12 @@ public class ContextualMockerStatefulTest {
             .willSetStateTo(State.LOGGED_IN)
             .thenReturn("Logged in");
         assertEquals("Logged in", mockService.greet("login"));
-
-        ContextHolder.clearContext();
     }
 
     @Test
     void testStateIsolationBetweenMocks() {
         SimpleService mock2 = mock(SimpleService.class);
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
         ContextHolder.setContext(context1);
         given(mockService)
@@ -113,12 +105,11 @@ public class ContextualMockerStatefulTest {
 
         assertEquals("Logged in", mockService.greet("login"));
         assertEquals("Logged in 2", mock2.greet("login"));
-
-        ContextHolder.clearContext();
     }
 
     @Test
     void testConcurrentStateTransitions() throws Exception {
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("login"))
@@ -137,7 +128,6 @@ public class ContextualMockerStatefulTest {
         List<Future<String>> results = new ArrayList<>();
         ContextHolder.setContext(context1);
 
-        // Alternate login/logout in parallel
         for (int i = 0; i < threads; i++) {
             final int idx = i;
             results.add(executor.submit(() -> {
@@ -151,7 +141,6 @@ public class ContextualMockerStatefulTest {
         executor.shutdown();
         executor.awaitTermination(2, TimeUnit.SECONDS);
 
-        // Just check that no exceptions and state transitions occurred
         for (Future<String> f : results) {
             assertTrue(
                 "Logged in".equals(f.get()) ||
@@ -159,11 +148,11 @@ public class ContextualMockerStatefulTest {
                 f.get() == null
             );
         }
-        ContextHolder.clearContext();
     }
 
     @Test
     void testNullStateAsRequiredOrNextState() {
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextHolder.setContext(context1);
         given(mockService)
             .forContext(context1)
@@ -172,7 +161,6 @@ public class ContextualMockerStatefulTest {
             .willSetStateTo(null)
             .thenReturn("Reset to null state");
 
-        // Set state to LOGGED_IN first
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("login"))
@@ -182,8 +170,6 @@ public class ContextualMockerStatefulTest {
 
         assertEquals("Logged in", mockService.greet("login"));
         assertEquals("Reset to null state", mockService.greet("reset"));
-        // Now state is null again
         assertEquals("Reset to null state", mockService.greet("reset"));
-        ContextHolder.clearContext();
     }
 }

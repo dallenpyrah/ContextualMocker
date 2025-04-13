@@ -5,13 +5,11 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
+import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 public class ContextHolderTest {
-
-    private final ContextID context1 = new StringContextId("testContext1");
-    private final ContextID context2 = new StringContextId("testContext2");
 
     private MockedStatic<MockRegistry> mockRegistryStatic;
 
@@ -31,25 +29,27 @@ public class ContextHolderTest {
 
     @Test
     void testSetAndGetContext() {
-        assertThrows(IllegalStateException.class, ContextHolder::getContext,
-                "Getting context when none is set should throw IllegalStateException");
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
+        ContextID context2 = new StringContextId(UUID.randomUUID().toString());
+
+        assertThrows(IllegalStateException.class, ContextHolder::getContext);
 
         ContextHolder.setContext(context1);
-        assertEquals(context1, ContextHolder.getContext(), "Should retrieve the set context");
+        assertEquals(context1, ContextHolder.getContext());
 
         ContextHolder.setContext(context2);
-        assertEquals(context2, ContextHolder.getContext(), "Should retrieve the newly set context");
+        assertEquals(context2, ContextHolder.getContext());
     }
 
     @Test
     void testClearContext() {
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextHolder.setContext(context1);
         assertEquals(context1, ContextHolder.getContext());
 
         ContextHolder.clearContext();
 
-        assertThrows(IllegalStateException.class, ContextHolder::getContext,
-                "Getting context after clearing should throw IllegalStateException");
+        assertThrows(IllegalStateException.class, ContextHolder::getContext);
     }
 
      @Test
@@ -59,6 +59,8 @@ public class ContextHolderTest {
 
     @Test
     void testClearContextTriggersRegistryCleanup() {
+        ContextID context1 = new StringContextId(UUID.randomUUID().toString());
+        ContextID context2 = new StringContextId(UUID.randomUUID().toString());
         ContextHolder.setContext(context1);
         assertEquals(context1, ContextHolder.getContext());
 
@@ -68,8 +70,4 @@ public class ContextHolderTest {
 
         mockRegistryStatic.verify(() -> MockRegistry.clearInvocationsForContext(context2), Mockito.never());
     }
-
-    // Note: Testing InheritableThreadLocal propagation requires actual thread creation,
-    // which is more complex and might be deferred to integration/concurrency tests (Plan lines 246-248).
-    // The basic set/get/clear functionality is covered here.
 }
