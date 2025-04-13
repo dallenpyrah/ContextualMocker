@@ -6,6 +6,35 @@
     <groupId>io.github.dallenpyrah</groupId>
     <artifactId>contextual-mocker</artifactId>
     <version>1.0.0</version>
+    
+    <name>ContextualMocker</name>
+    <description>A Parallel-Safe, Context-Aware Java Mocking Framework</description>
+    <url>https://github.com/dallenpyrah/ContextualMocker</url>
+    
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    
+    <developers>
+        <developer>
+            <id>dallenpyrah</id>
+            <name>Dallen Pyrah</name>
+            <email>dallenpyrah@gmail.com</email>
+            <roles>
+                <role>developer</role>
+            </roles>
+        </developer>
+    </developers>
+    
+    <scm>
+        <connection>scm:git:git://github.com/dallenpyrah/ContextualMocker.git</connection>
+        <developerConnection>scm:git:ssh://github.com/dallenpyrah/ContextualMocker.git</developerConnection>
+        <url>https://github.com/dallenpyrah/ContextualMocker</url>
+    </scm>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
