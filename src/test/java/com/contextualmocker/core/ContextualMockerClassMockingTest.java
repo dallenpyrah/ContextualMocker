@@ -29,7 +29,6 @@ class ContextualMockerClassMockingTest {
     void canMockConcreteClassWithDefaultConstructor() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
         given(mockSimpleService).forContext(ctx).when(() -> mockSimpleService.greet("Alice")).thenReturn("Hi Alice");
-        ContextHolder.setContext(ctx);
         assertEquals("Hi Alice", mockSimpleService.greet("Alice"));
         assertNull(mockSimpleService.getList(5));
     }
@@ -38,7 +37,6 @@ class ContextualMockerClassMockingTest {
     void canMockClassWithNoDefaultConstructor() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
         given(mockNoDefaultConstructor).forContext(ctx).when(() -> mockNoDefaultConstructor.greet("Bob")).thenReturn("Hello Bob");
-        ContextHolder.setContext(ctx);
         assertEquals("Hello Bob", mockNoDefaultConstructor.greet("Bob"));
         assertNull(mockNoDefaultConstructor.getValue());
     }
@@ -65,7 +63,6 @@ class ContextualMockerClassMockingTest {
     void staticMethodsAreNotMocked() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
         given(mockStaticMethodClass).forContext(ctx).when(() -> mockStaticMethodClass.sayHello()).thenReturn("Mocked");
-        ContextHolder.setContext(ctx);
         assertEquals("Mocked", mockStaticMethodClass.sayHello());
         assertEquals("Static", ClassWithStaticMethod.staticMethod());
     }

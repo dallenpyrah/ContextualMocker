@@ -56,7 +56,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testBasicThenReturn() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
         given(mockService)
                 .forContext(context1)
@@ -71,7 +70,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testStubbingDifferentMethodsSameContext() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
         given(mockService)
                 .forContext(context1)
@@ -94,13 +92,11 @@ public class ContextualMockerCoreTest {
     void testStubbingSameMethodDifferentContexts() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextID context2 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.greet("Bob"))
                 .thenReturn("Hello Bob from Context 1");
 
-        ContextHolder.setContext(context2);
         given(mockService)
                 .forContext(context2)
                 .when(() -> mockService.greet("Bob"))
@@ -118,7 +114,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testStubbingWithDifferentArgumentTypes() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
         given(mockService)
                 .forContext(context1)
@@ -139,7 +134,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testAnyMatcherMatchesAnyValue() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.greet(any()))
@@ -152,7 +146,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testAnyMatcherMatchesPrimitiveAndObject() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.getList(anyInt()))
@@ -165,7 +158,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testEqMatcherMatchesDeepEquals() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.greet(eq("deep")))
@@ -178,7 +170,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testEqMatcherWithNull() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.greet(eq(null)))
@@ -191,7 +182,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testMatchersWithComplexType() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         List<String> expected = List.of("a", "b");
         given(mockService)
                 .forContext(context1)
@@ -205,7 +195,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testMatcherStateIsPerInvocation() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
                 .forContext(context1)
                 .when(() -> mockService.greet(eq("A")))
@@ -238,7 +227,6 @@ public class ContextualMockerCoreTest {
     @Test
     void testVerificationIgnoresStubbingInvocations() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
         given(mockService)
                 .forContext(context1)

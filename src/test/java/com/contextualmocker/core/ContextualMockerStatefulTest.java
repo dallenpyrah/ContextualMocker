@@ -30,7 +30,6 @@ public class ContextualMockerStatefulTest {
     @Test
     void testWhenStateIsAndWillSetStateTo() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
         given(mockService)
             .forContext(context1)
@@ -63,7 +62,6 @@ public class ContextualMockerStatefulTest {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextID context2 = new StringContextId(UUID.randomUUID().toString());
 
-        ContextHolder.setContext(context1);
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("login"))
@@ -89,7 +87,6 @@ public class ContextualMockerStatefulTest {
         SimpleService mock2 = mock(SimpleService.class);
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        ContextHolder.setContext(context1);
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("login"))
@@ -153,7 +150,6 @@ public class ContextualMockerStatefulTest {
     @Test
     void testNullStateAsRequiredOrNextState() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
         given(mockService)
             .forContext(context1)
             .when(() -> mockService.greet("reset"))
