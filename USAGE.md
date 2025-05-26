@@ -41,6 +41,8 @@ You can create your own `ContextID` implementations if needed, ensuring they cor
 
 Stubbing defines how a mock should behave when its methods are called within a specific context.
 
+Note: The `.forContext(contextId)` method not only associates the stubbing/verification with a context but also sets this `contextId` as the active `ThreadLocal` context in `ContextHolder`. This means an explicit `ContextHolder.setContext(contextId)` call immediately before a `given(...).forContext(contextId)` or `verify(...).forContext(contextId)` chain is often redundant if that chain is the first to establish the context for subsequent mock interactions on the same thread.
+
 ### Basic Stubbing (`thenReturn`)
 
 ```java
@@ -55,10 +57,10 @@ ContextualMocker.given(mockService)
     .thenReturn("Greetings Alice from Context 2!");
 
 // --- Usage ---
-// Assume ContextHolder.setContext(userContext1) or similar context setup is done
+// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
 String greeting1 = mockService.greet("Alice"); // returns "Hello Alice from Context 1!"
 
-// Assume ContextHolder.setContext(userContext2)
+// Context is userContext2 (implicitly set by .forContext above, persists for this thread)
 String greeting2 = mockService.greet("Alice"); // returns "Greetings Alice from Context 2!"
 ```
 
@@ -71,7 +73,7 @@ ContextualMocker.given(mockService)
     .thenThrow(new IllegalArgumentException("ID 99 is invalid in Context 1"));
 
 // --- Usage ---
-// Assume ContextHolder.setContext(userContext1)
+// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
 try {
     mockService.process(99);
 } catch (IllegalArgumentException e) {
@@ -98,7 +100,7 @@ ContextualMocker.given(mockService)
     });
 
 // --- Usage ---
-// Assume ContextHolder.setContext(userContext1)
+// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
 String dynamicGreeting = mockService.greet("Bob");
 // returns "Dynamic greeting for Bob in context StringContextId{id='user1'}"
 ```
@@ -111,7 +113,7 @@ Verification checks if methods on a mock were called as expected within a specif
 
 ```java
 // --- Perform actions ---
-// Assume ContextHolder.setContext(userContext1)
+// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 mockService.greet("Charlie");
 mockService.greet("Charlie");
 
@@ -130,7 +132,7 @@ ContextualMocker.verify(mockService)
 ### Other Verification Modes
 
 ```java
-// Assume ContextHolder.setContext(userContext1)
+// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 mockService.process(1);
 mockService.process(2);
 mockService.process(3);
@@ -154,7 +156,7 @@ ContextualMocker.verify(mockService)
 ### Verifying No (More) Interactions
 
 ```java
-// Assume ContextHolder.setContext(userContext1)
+// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 mockService.greet("Eve");
 
 // Verify the specific interaction
@@ -189,7 +191,7 @@ ContextualMocker.given(mockService)
     .thenReturn(true);
 
 // Verification with matchers
-// Assume ContextHolder.setContext(userContext1)
+// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 mockService.greet("Frank");
 mockService.process(100);
 
@@ -198,7 +200,7 @@ ContextualMocker.verify(mockService)
     .verify(ContextualMocker.times(1))
     .greet(ArgumentMatchers.any()); // Verify any string was passed
 
-// Assume ContextHolder.setContext(userContext2)
+// To perform actions, ensure userContext2 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 mockService.process(10);
 
 ContextualMocker.verify(mockService)
@@ -249,7 +251,7 @@ ContextualMocker.given(sessionMock)
     .willSetStateTo(STATE_LOGGED_OUT); // Transition state on logout
 
 // --- Usage ---
-// Assume ContextHolder.setContext(sessionContext)
+// To perform actions, ensure sessionContext is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
 
 // Initially, getData() might return null or throw (if default not stubbed)
 // String initialData = sessionMock.getData(); // Behavior depends on default/other stubbing

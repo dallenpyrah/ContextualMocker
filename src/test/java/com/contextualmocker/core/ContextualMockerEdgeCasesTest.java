@@ -73,7 +73,6 @@ class ContextualMockerEdgeCasesTest {
     void usingArgumentMatcherForSingleArgumentWorks() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
         given(mockService).forContext(ctx).when(() -> mockService.process(ArgumentMatchers.any())).thenReturn("matched");
-        ContextHolder.setContext(ctx);
         assertEquals("matched", mockService.process("anything"));
     }
 
