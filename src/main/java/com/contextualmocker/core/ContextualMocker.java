@@ -171,6 +171,106 @@ public final class ContextualMocker {
     }
 
     /**
+     * Creates a spy object that wraps a real instance, allowing selective stubbing
+     * while delegating unstubbed methods to the real implementation.
+     * 
+     * <p>Spies are useful for partial mocking scenarios where you want to:
+     * <ul>
+     *   <li>Stub only specific methods while keeping real behavior for others</li>
+     *   <li>Verify interactions on real objects</li>
+     *   <li>Test legacy code that's difficult to mock completely</li>
+     * </ul>
+     * 
+     * <p>Example usage:
+     * <pre>{@code
+     * UserService realService = new UserServiceImpl();
+     * UserService spy = spy(realService);
+     * 
+     * // Stub specific methods
+     * given(spy).forContext(ctx).when(() -> spy.externalCall()).thenReturn("stubbed");
+     * 
+     * // Real methods still work
+     * String result = spy.processData("input"); // Calls real implementation
+     * }</pre>
+     * 
+     * <p><strong>Limitations:</strong>
+     * <ul>
+     *   <li>Cannot spy on final classes or interfaces</li>
+     *   <li>Cannot spy on final methods</li>
+     *   <li>Private methods cannot be stubbed</li>
+     *   <li>Constructor calls during spying may have side effects</li>
+     * </ul>
+     *
+     * @param <T> The type of the object to spy on.
+     * @param realObject The real object instance to wrap.
+     * @return A spy that delegates to the real object but allows selective stubbing.
+     * @throws IllegalArgumentException If spying on the given object is not supported.
+     * @throws NullPointerException If realObject is null.
+     * @throws RuntimeException If spy creation fails.
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T spy(T realObject) {
+        Objects.requireNonNull(realObject, "Real object cannot be null");
+        
+        Class<T> classToSpy = (Class<T>) realObject.getClass();
+        
+        // Cannot spy on final classes
+        if (java.lang.reflect.Modifier.isFinal(classToSpy.getModifiers())) {
+            throw new IllegalArgumentException("Cannot spy on final classes: " + classToSpy.getName());
+        }
+        
+        // Cannot spy on interfaces
+        if (classToSpy.isInterface()) {
+            throw new IllegalArgumentException("Cannot spy on interfaces, use mock() instead: " + classToSpy.getName());
+        }
+
+        InvocationHandler handler = new com.contextualmocker.handlers.SpyInvocationHandler(realObject);
+
+        // Check for final methods that cannot be stubbed
+        for (java.lang.reflect.Method m : classToSpy.getDeclaredMethods()) {
+            if (java.lang.reflect.Modifier.isFinal(m.getModifiers()) && 
+                !java.lang.reflect.Modifier.isPrivate(m.getModifiers())) {
+                // Note: We allow final methods but they cannot be stubbed
+                // This is consistent with other mocking frameworks
+            }
+        }
+
+        try {
+            net.bytebuddy.dynamic.DynamicType.Builder<? extends T> builder = new ByteBuddy()
+                    .subclass(classToSpy)
+                    .method(ElementMatchers.not(ElementMatchers.isFinal())
+                            .and(ElementMatchers.not(ElementMatchers.isStatic()))
+                            .and(ElementMatchers.not(ElementMatchers.isPrivate())))
+                    .intercept(InvocationHandlerAdapter.of(handler));
+
+            Class<? extends T> spyClass = builder
+                    .make()
+                    .load(classToSpy.getClassLoader())
+                    .getLoaded();
+
+            // Try default constructor first
+            try {
+                return spyClass.getDeclaredConstructor().newInstance();
+            } catch (NoSuchMethodException e) {
+                // No default constructor, try to use the first available constructor with default values
+                java.lang.reflect.Constructor<?>[] ctors = spyClass.getDeclaredConstructors();
+                if (ctors.length == 0) {
+                    throw new RuntimeException("No accessible constructor found for " + classToSpy.getName());
+                }
+                java.lang.reflect.Constructor<?> ctor = ctors[0];
+                Class<?>[] paramTypes = ctor.getParameterTypes();
+                Object[] params = new Object[paramTypes.length];
+                for (int i = 0; i < paramTypes.length; i++) {
+                    params[i] = getDefaultValue(paramTypes[i]);
+                }
+                return (T) ctor.newInstance(params);
+            }
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create spy for class " + classToSpy.getName(), e);
+        }
+    }
+
+    /**
      * Initiates the stubbing process for a given mock object.
      *
      * @param <T> The type of the mock object.
@@ -464,9 +564,22 @@ public final class ContextualMocker {
     }
 
     /**
-     * Marker interface for different verification modes (times, atLeast, etc.).
+     * Interface for different verification modes (times, atLeast, etc.).
      */
-    public interface ContextualVerificationMode {}
+    public interface ContextualVerificationMode {
+        /**
+         * Verifies the count with enhanced error reporting.
+         */
+        default void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
+            verifyCountWithContext(actual, method, args, null, null, null);
+        }
+        
+        /**
+         * Verifies the count with full context for enhanced error messages.
+         */
+        void verifyCountWithContext(int actual, java.lang.reflect.Method method, Object[] args, 
+                                  Object mock, ContextID contextId, java.util.List<InvocationRecord> allInvocations);
+    }
 
     /**
      * Verification mode specifying an exact number of invocations.
@@ -479,6 +592,16 @@ public final class ContextualMocker {
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual != wanted) {
                 throw new AssertionError("Wanted " + wanted + " invocations but got " + actual + " for method '" + method.getName() + "' with arguments " + java.util.Arrays.toString(args));
+            }
+        }
+        
+        @Override
+        public void verifyCountWithContext(int actual, java.lang.reflect.Method method, Object[] args, 
+                                         Object mock, ContextID contextId, java.util.List<InvocationRecord> allInvocations) {
+            if (actual != wanted) {
+                throw new VerificationFailureException(
+                    mock, contextId, method, args, wanted, actual, 
+                    "exactly " + wanted + " time" + (wanted == 1 ? "" : "s"), allInvocations);
             }
         }
     }
@@ -494,6 +617,16 @@ public final class ContextualMocker {
         public void verifyCount(int actual, java.lang.reflect.Method method, Object[] args) {
             if (actual < min) {
                 throw new AssertionError("Wanted at least " + min + " invocations but got only " + actual + " for method '" + method.getName() + "' with arguments " + java.util.Arrays.toString(args));
+            }
+        }
+        
+        @Override
+        public void verifyCountWithContext(int actual, java.lang.reflect.Method method, Object[] args, 
+                                         Object mock, ContextID contextId, java.util.List<InvocationRecord> allInvocations) {
+            if (actual < min) {
+                throw new VerificationFailureException(
+                    mock, contextId, method, args, min, actual, 
+                    "at least " + min + " time" + (min == 1 ? "" : "s"), allInvocations);
             }
         }
     }
@@ -512,6 +645,16 @@ public final class ContextualMocker {
             if (actual > max) {
                 throw new AssertionError(
                         "Wanted at most " + max + " invocations but got " + actual + " for method '" + method.getName() + "' with arguments " + java.util.Arrays.toString(args));
+            }
+        }
+        
+        @Override
+        public void verifyCountWithContext(int actual, java.lang.reflect.Method method, Object[] args, 
+                                         Object mock, ContextID contextId, java.util.List<InvocationRecord> allInvocations) {
+            if (actual > max) {
+                throw new VerificationFailureException(
+                    mock, contextId, method, args, max, actual, 
+                    "at most " + max + " time" + (max == 1 ? "" : "s"), allInvocations);
             }
         }
     }

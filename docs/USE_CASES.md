@@ -319,6 +319,11 @@ void testEventDrivenWorkflows() {
 
 *   **Automatic Context Management:** The `scopedContext()` API prevents context leaks and ensures proper cleanup, eliminating a major source of test flakiness.
 *   **Multiple API Styles:** From simple direct methods to sophisticated builder patterns, choose the right level of abstraction for each test scenario.
+*   **Enhanced Error Messages:** Detailed verification failure messages with context information, invocation history, and troubleshooting tips significantly reduce debugging time.
+*   **Automatic Memory Management:** Built-in cleanup policies prevent memory leaks in long-running test suites with configurable age-based and size-based strategies.
+*   **Comprehensive Spy Support:** Partial mocking capabilities allow selective stubbing while preserving real behavior for legacy code integration.
+*   **JUnit 5 Integration:** Seamless annotation-based dependency injection eliminates boilerplate test setup code.
+*   **Extended Argument Matchers:** Rich set of matchers including string patterns, collections, ranges, and custom predicates for flexible test scenarios.
 *   **Contextual Isolation:** Unlike generic mocking frameworks, ContextualMocker allows you to define, stub, and verify mocks within explicit contexts, preventing accidental leakage of behavior between tests.
 *   **Advanced Stubbing and Verification:** Support for context-specific stubbing rules, stateful mocking, and sophisticated verification modes enables precise, expressive tests for complex scenarios.
 *   **Concurrency-Friendly Design:** Built with parallel and concurrent test execution in mind, minimizing issues related to shared state or race conditions.
@@ -328,4 +333,4 @@ void testEventDrivenWorkflows() {
 
 Use ContextualMocker when you need more than just basic mocking—when your tests demand context awareness, isolation, and reliability, especially in complex or concurrent Java projects. Its unique approach to context management, combined with multiple API styles for different use cases, sets it apart from traditional mocking tools, making it an excellent choice for teams who value robust, maintainable, and precise tests.
 
-The new APIs (`scopedContext()`, direct methods, builder patterns) make ContextualMocker not just more powerful, but also easier to use than traditional mocking frameworks for context-aware scenarios.
+The enhanced features (enhanced error messages, automatic memory management, comprehensive spy support, JUnit 5 integration) combined with the new APIs (`scopedContext()`, direct methods, builder patterns) make ContextualMocker not just more powerful, but also easier to use than traditional mocking frameworks for context-aware scenarios.

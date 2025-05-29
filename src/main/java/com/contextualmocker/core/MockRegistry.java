@@ -6,9 +6,14 @@ import java.lang.reflect.Method;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import com.contextualmocker.core.CanonicalMockReference;
 
@@ -16,9 +21,75 @@ import com.contextualmocker.core.CanonicalMockReference;
  * A thread-safe registry holding all state for mocks created by ContextualMocker.
  * This includes stubbing rules, recorded invocations, and state for stateful mocking,
  * all organized by mock instance (via WeakReference) and context ID.
+ * 
+ * Features automatic memory management and cleanup to prevent memory leaks.
  */
 public final class MockRegistry {
    private static final Logger logger = LoggerFactory.getLogger(MockRegistry.class);
+
+    // Memory management configuration
+    public static class CleanupConfiguration {
+        private final long maxInvocationsPerContext;
+        private final long maxAgeMillis;
+        private final long cleanupIntervalMillis;
+        private final boolean autoCleanupEnabled;
+
+        public CleanupConfiguration(long maxInvocationsPerContext, long maxAgeMillis, 
+                                   long cleanupIntervalMillis, boolean autoCleanupEnabled) {
+            this.maxInvocationsPerContext = maxInvocationsPerContext;
+            this.maxAgeMillis = maxAgeMillis;
+            this.cleanupIntervalMillis = cleanupIntervalMillis;
+            this.autoCleanupEnabled = autoCleanupEnabled;
+        }
+
+        public static CleanupConfiguration defaultConfig() {
+            return new CleanupConfiguration(
+                10000,  // Max 10,000 invocations per context
+                300000, // 5 minutes max age
+                60000,  // Cleanup every minute
+                true    // Auto cleanup enabled
+            );
+        }
+
+        public long getMaxInvocationsPerContext() { return maxInvocationsPerContext; }
+        public long getMaxAgeMillis() { return maxAgeMillis; }
+        public long getCleanupIntervalMillis() { return cleanupIntervalMillis; }
+        public boolean isAutoCleanupEnabled() { return autoCleanupEnabled; }
+    }
+
+    // Memory usage tracking
+    public static class MemoryUsageStats {
+        private final long totalMocks;
+        private final long totalContexts;
+        private final long totalInvocations;
+        private final long totalStubbingRules;
+        private final long totalStates;
+
+        public MemoryUsageStats(long totalMocks, long totalContexts, long totalInvocations, 
+                               long totalStubbingRules, long totalStates) {
+            this.totalMocks = totalMocks;
+            this.totalContexts = totalContexts;
+            this.totalInvocations = totalInvocations;
+            this.totalStubbingRules = totalStubbingRules;
+            this.totalStates = totalStates;
+        }
+
+        public long getTotalMocks() { return totalMocks; }
+        public long getTotalContexts() { return totalContexts; }
+        public long getTotalInvocations() { return totalInvocations; }
+        public long getTotalStubbingRules() { return totalStubbingRules; }
+        public long getTotalStates() { return totalStates; }
+
+        @Override
+        public String toString() {
+            return String.format("MemoryUsageStats{mocks=%d, contexts=%d, invocations=%d, rules=%d, states=%d}",
+                    totalMocks, totalContexts, totalInvocations, totalStubbingRules, totalStates);
+        }
+    }
+
+    private static volatile CleanupConfiguration cleanupConfig = CleanupConfiguration.defaultConfig();
+    private static volatile ScheduledExecutorService cleanupExecutor;
+    private static final AtomicLong lastCleanupTime = new AtomicLong(System.currentTimeMillis());
 
     // Structure: Mock Instance (CanonicalMockReference) -> ContextID -> Deque of Rules (LIFO)
     private static final ConcurrentMap<CanonicalMockReference, ConcurrentMap<ContextID, Deque<StubbingRule>>> stubbingRules =
@@ -391,6 +462,395 @@ public final class MockRegistry {
             CanonicalMockReference ref = identityMap.get(mock);
             return ref != null && ref.get() == null;
         });
+    }
+
+    // === MEMORY MANAGEMENT PUBLIC API ===
+
+    /**
+     * Configures the automatic cleanup behavior for the MockRegistry.
+     * 
+     * @param config The cleanup configuration to use
+     */
+    public static void setCleanupConfiguration(CleanupConfiguration config) {
+        if (config == null) {
+            throw new IllegalArgumentException("Cleanup configuration cannot be null");
+        }
+        
+        CleanupConfiguration oldConfig = cleanupConfig;
+        cleanupConfig = config;
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("Updated cleanup configuration: {}", config);
+        }
+        
+        // Restart cleanup scheduler if configuration changed
+        if (oldConfig.isAutoCleanupEnabled() != config.isAutoCleanupEnabled() ||
+            oldConfig.getCleanupIntervalMillis() != config.getCleanupIntervalMillis()) {
+            restartCleanupScheduler();
+        }
+    }
+
+    /**
+     * Gets the current cleanup configuration.
+     * 
+     * @return The current cleanup configuration
+     */
+    public static CleanupConfiguration getCleanupConfiguration() {
+        return cleanupConfig;
+    }
+
+    /**
+     * Enables automatic periodic cleanup with the current configuration.
+     */
+    public static synchronized void enableAutoCleanup() {
+        if (cleanupExecutor != null) {
+            logger.debug("Auto cleanup already enabled");
+            return;
+        }
+        
+        if (!cleanupConfig.isAutoCleanupEnabled()) {
+            logger.debug("Auto cleanup disabled in configuration, ignoring enable request");
+            return;
+        }
+        
+        cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "MockRegistry-Cleanup");
+            t.setDaemon(true);
+            return t;
+        });
+        
+        cleanupExecutor.scheduleWithFixedDelay(
+            MockRegistry::performScheduledCleanup,
+            cleanupConfig.getCleanupIntervalMillis(),
+            cleanupConfig.getCleanupIntervalMillis(),
+            TimeUnit.MILLISECONDS
+        );
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("Auto cleanup enabled with interval: {}ms", cleanupConfig.getCleanupIntervalMillis());
+        }
+    }
+
+    /**
+     * Disables automatic periodic cleanup.
+     */
+    public static synchronized void disableAutoCleanup() {
+        if (cleanupExecutor != null) {
+            cleanupExecutor.shutdown();
+            try {
+                if (!cleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    cleanupExecutor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                cleanupExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            cleanupExecutor = null;
+            logger.info("Auto cleanup disabled");
+        }
+    }
+
+    /**
+     * Manually triggers a comprehensive cleanup of all stored data.
+     * This includes:
+     * - Removing stale mock references
+     * - Cleaning up old invocation records
+     * - Removing expired stubbing rules
+     * - Cleaning up empty context maps
+     * 
+     * @return Statistics about what was cleaned up
+     */
+    public static CleanupStats performCleanup() {
+        long startTime = System.currentTimeMillis();
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("Starting manual cleanup at {}", startTime);
+        }
+        
+        CleanupStats stats = performComprehensiveCleanup();
+        lastCleanupTime.set(startTime);
+        
+        if (logger.isInfoEnabled()) {
+            logger.info("Manual cleanup completed in {}ms: {}", 
+                System.currentTimeMillis() - startTime, stats);
+        }
+        
+        return stats;
+    }
+
+    /**
+     * Clears all data associated with a specific mock instance.
+     * 
+     * @param mock The mock instance to clear
+     * @return True if data was found and cleared, false otherwise
+     */
+    public static boolean clearMockData(Object mock) {
+        if (mock == null) {
+            return false;
+        }
+        
+        CanonicalMockReference mockRef = identityMap.get(mock);
+        if (mockRef == null) {
+            return false;
+        }
+        
+        boolean clearedSomething = false;
+        
+        // Clear stubbing rules
+        if (stubbingRules.remove(mockRef) != null) {
+            clearedSomething = true;
+        }
+        
+        // Clear invocation records
+        if (invocationRecords.remove(mockRef) != null) {
+            clearedSomething = true;
+        }
+        
+        // Clear state
+        if (stateMap.remove(mockRef) != null) {
+            clearedSomething = true;
+        }
+        
+        // Remove from identity map
+        if (identityMap.remove(mock) != null) {
+            clearedSomething = true;
+        }
+        
+        if (logger.isDebugEnabled()) {
+            logger.debug("Cleared all data for mock: {}, found data: {}", mock, clearedSomething);
+        }
+        
+        return clearedSomething;
+    }
+
+    /**
+     * Clears all data for all mocks. Use with caution!
+     */
+    public static void clearAllData() {
+        if (logger.isWarnEnabled()) {
+            logger.warn("Clearing ALL MockRegistry data");
+        }
+        
+        stubbingRules.clear();
+        invocationRecords.clear();
+        stateMap.clear();
+        identityMap.clear();
+        
+        logger.info("All MockRegistry data cleared");
+    }
+
+    /**
+     * Gets current memory usage statistics.
+     * 
+     * @return Current memory usage statistics
+     */
+    public static MemoryUsageStats getMemoryUsageStats() {
+        long totalMocks = identityMap.size();
+        long totalContexts = 0;
+        long totalInvocations = 0;
+        long totalStubbingRules = 0;
+        long totalStates = 0;
+        
+        // Count contexts and invocations
+        for (Map<ContextID, Deque<InvocationRecord>> contextMap : invocationRecords.values()) {
+            totalContexts += contextMap.size();
+            for (Deque<InvocationRecord> records : contextMap.values()) {
+                totalInvocations += records.size();
+            }
+        }
+        
+        // Count stubbing rules
+        for (Map<ContextID, Deque<StubbingRule>> contextMap : stubbingRules.values()) {
+            for (Deque<StubbingRule> rules : contextMap.values()) {
+                totalStubbingRules += rules.size();
+            }
+        }
+        
+        // Count states
+        for (Map<ContextID, ?> contextMap : stateMap.values()) {
+            totalStates += contextMap.size();
+        }
+        
+        return new MemoryUsageStats(totalMocks, totalContexts, totalInvocations, totalStubbingRules, totalStates);
+    }
+
+    /**
+     * Statistics about cleanup operations.
+     */
+    public static class CleanupStats {
+        private final long removedMocks;
+        private final long removedContexts;
+        private final long removedInvocations;
+        private final long removedStubbingRules;
+        private final long removedStates;
+
+        public CleanupStats(long removedMocks, long removedContexts, long removedInvocations, 
+                           long removedStubbingRules, long removedStates) {
+            this.removedMocks = removedMocks;
+            this.removedContexts = removedContexts;
+            this.removedInvocations = removedInvocations;
+            this.removedStubbingRules = removedStubbingRules;
+            this.removedStates = removedStates;
+        }
+
+        public long getRemovedMocks() { return removedMocks; }
+        public long getRemovedContexts() { return removedContexts; }
+        public long getRemovedInvocations() { return removedInvocations; }
+        public long getRemovedStubbingRules() { return removedStubbingRules; }
+        public long getRemovedStates() { return removedStates; }
+
+        @Override
+        public String toString() {
+            return String.format("CleanupStats{mocks=%d, contexts=%d, invocations=%d, rules=%d, states=%d}",
+                    removedMocks, removedContexts, removedInvocations, removedStubbingRules, removedStates);
+        }
+    }
+
+    // === PRIVATE CLEANUP IMPLEMENTATION ===
+
+    private static synchronized void restartCleanupScheduler() {
+        disableAutoCleanup();
+        if (cleanupConfig.isAutoCleanupEnabled()) {
+            enableAutoCleanup();
+        }
+    }
+
+    private static void performScheduledCleanup() {
+        try {
+            performComprehensiveCleanup();
+            lastCleanupTime.set(System.currentTimeMillis());
+        } catch (Exception e) {
+            logger.error("Error during scheduled cleanup", e);
+        }
+    }
+
+    private static CleanupStats performComprehensiveCleanup() {
+        long removedMocks = 0;
+        long removedContexts = 0;
+        long removedInvocations = 0;
+        long removedStubbingRules = 0;
+        long removedStates = 0;
+        
+        long currentTime = System.currentTimeMillis();
+        long maxAge = cleanupConfig.getMaxAgeMillis();
+        long maxInvocations = cleanupConfig.getMaxInvocationsPerContext();
+        
+        // Clean stale references first
+        cleanUpStaleReferences();
+        
+        // Clean up old invocation records
+        Iterator<Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, Deque<InvocationRecord>>>> mockIterator = 
+            invocationRecords.entrySet().iterator();
+        
+        while (mockIterator.hasNext()) {
+            Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, Deque<InvocationRecord>>> mockEntry = mockIterator.next();
+            
+            if (mockEntry.getKey().get() == null) {
+                mockIterator.remove();
+                removedMocks++;
+                continue;
+            }
+            
+            Iterator<Map.Entry<ContextID, Deque<InvocationRecord>>> contextIterator = 
+                mockEntry.getValue().entrySet().iterator();
+                
+            while (contextIterator.hasNext()) {
+                Map.Entry<ContextID, Deque<InvocationRecord>> contextEntry = contextIterator.next();
+                Deque<InvocationRecord> records = contextEntry.getValue();
+                
+                // Remove old records
+                Iterator<InvocationRecord> recordIterator = records.iterator();
+                while (recordIterator.hasNext()) {
+                    InvocationRecord record = recordIterator.next();
+                    if (currentTime - record.getTimestamp().toEpochMilli() > maxAge) {
+                        recordIterator.remove();
+                        removedInvocations++;
+                    }
+                }
+                
+                // Trim to max size if needed
+                while (records.size() > maxInvocations) {
+                    if (records.removeFirst() != null) {
+                        removedInvocations++;
+                    }
+                }
+                
+                // Remove empty context
+                if (records.isEmpty()) {
+                    contextIterator.remove();
+                    removedContexts++;
+                }
+            }
+            
+            // Remove empty mock entry
+            if (mockEntry.getValue().isEmpty()) {
+                mockIterator.remove();
+                removedMocks++;
+            }
+        }
+        
+        // Clean up expired stubbing rules
+        for (Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, Deque<StubbingRule>>> mockEntry : stubbingRules.entrySet()) {
+            for (Deque<StubbingRule> rules : mockEntry.getValue().values()) {
+                Iterator<StubbingRule> ruleIterator = rules.iterator();
+                while (ruleIterator.hasNext()) {
+                    StubbingRule rule = ruleIterator.next();
+                    if (rule.isExpired()) {
+                        ruleIterator.remove();
+                        removedStubbingRules++;
+                    }
+                }
+            }
+        }
+        
+        // Clean up empty context maps in stubbing rules
+        Iterator<Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, Deque<StubbingRule>>>> stubMockIterator = 
+            stubbingRules.entrySet().iterator();
+        while (stubMockIterator.hasNext()) {
+            Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, Deque<StubbingRule>>> mockEntry = stubMockIterator.next();
+            
+            if (mockEntry.getKey().get() == null) {
+                stubMockIterator.remove();
+                continue;
+            }
+            
+            mockEntry.getValue().entrySet().removeIf(entry -> entry.getValue().isEmpty());
+            
+            if (mockEntry.getValue().isEmpty()) {
+                stubMockIterator.remove();
+            }
+        }
+        
+        // Clean up empty context maps in state map
+        Iterator<Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, java.util.concurrent.atomic.AtomicReference<Object>>>> stateMockIterator = 
+            stateMap.entrySet().iterator();
+        while (stateMockIterator.hasNext()) {
+            Map.Entry<CanonicalMockReference, ConcurrentMap<ContextID, java.util.concurrent.atomic.AtomicReference<Object>>> mockEntry = stateMockIterator.next();
+            
+            if (mockEntry.getKey().get() == null) {
+                stateMockIterator.remove();
+                continue;
+            }
+            
+            if (mockEntry.getValue().isEmpty()) {
+                stateMockIterator.remove();
+            }
+        }
+        
+        return new CleanupStats(removedMocks, removedContexts, removedInvocations, removedStubbingRules, removedStates);
+    }
+
+    // Static initialization
+    static {
+        // Enable auto cleanup by default if configured
+        if (cleanupConfig.isAutoCleanupEnabled()) {
+            enableAutoCleanup();
+        }
+        
+        // Register shutdown hook to clean up executor
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            disableAutoCleanup();
+        }, "MockRegistry-Shutdown"));
     }
 
 }

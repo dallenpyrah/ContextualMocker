@@ -8,13 +8,17 @@ This comprehensive guide demonstrates how to use ContextualMocker's improved API
 3. [Recommended API: Scoped Context Management](#3-recommended-api-scoped-context-management)
 4. [Alternative APIs](#4-alternative-apis)
 5. [Creating Mocks](#5-creating-mocks)
-6. [Defining Context](#6-defining-context)
-7. [Stubbing Examples](#7-stubbing-examples)
-8. [Verification Examples](#8-verification-examples)
-9. [Argument Matchers](#9-argument-matchers)
-10. [Stateful Mocking](#10-stateful-mocking)
-11. [Concurrency and Thread Safety](#11-concurrency-and-thread-safety)
-12. [Best Practices](#12-best-practices)
+6. [Spy Support (Partial Mocking)](#6-spy-support-partial-mocking)
+7. [JUnit 5 Integration](#7-junit-5-integration)
+8. [Defining Context](#8-defining-context)
+9. [Stubbing Examples](#9-stubbing-examples)
+10. [Verification Examples](#10-verification-examples)
+11. [Enhanced Error Messages](#11-enhanced-error-messages)
+12. [Argument Matchers](#12-argument-matchers)
+13. [Memory Management](#13-memory-management)
+14. [Stateful Mocking](#14-stateful-mocking)
+15. [Concurrency and Thread Safety](#15-concurrency-and-thread-safety)
+16. [Best Practices](#16-best-practices)
 
 ## 1. Setup and Dependency
 
@@ -203,7 +207,163 @@ interface Repository<T> {
 Repository<User> userRepoMock = mock(Repository.class);
 ```
 
-## 6. Defining Context
+## 6. Spy Support (Partial Mocking)
+
+**Spies wrap real objects** allowing selective stubbing while delegating unstubbed methods to the real implementation:
+
+```java
+// Create a real service instance
+class UserServiceImpl implements UserService {
+    public String getUserData(String userId) {
+        return "real-data-for-" + userId;
+    }
+    
+    public String externalApiCall(String request) {
+        // This makes actual network calls - we want to stub this
+        return "external-api-response";
+    }
+    
+    public boolean validateUser(String userId) {
+        // Real validation logic we want to keep
+        return userId != null && userId.length() > 0;
+    }
+}
+
+UserService realService = new UserServiceImpl();
+UserService spy = spy(realService);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Stub only the external API call
+    scope.when(spy, () -> spy.externalApiCall("test-request"))
+         .thenReturn("mocked-external-response");
+    
+    // Real methods still work normally
+    assertTrue(spy.validateUser("user123"));  // Real implementation
+    assertEquals("real-data-for-user123", spy.getUserData("user123"));  // Real implementation
+    
+    // Stubbed method returns mocked value
+    assertEquals("mocked-external-response", spy.externalApiCall("test-request"));
+    
+    // Verify interactions on both real and stubbed methods
+    scope.verify(spy, times(1), () -> spy.validateUser("user123"));
+    scope.verify(spy, times(1), () -> spy.externalApiCall("test-request"));
+}
+```
+
+### Spy Use Cases
+
+```java
+// Legacy system integration
+class LegacyOrderService {
+    public Order processOrder(Order order) {
+        // Complex legacy logic we don't want to mock completely
+        order.setStatus("processed");
+        return order;
+    }
+    
+    public void sendNotification(String email) {
+        // External service we want to stub
+        throw new RuntimeException("Would send real email");
+    }
+}
+
+LegacyOrderService legacyService = new LegacyOrderService();
+LegacyOrderService spy = spy(legacyService);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Stub only the external notification
+    scope.when(spy, () -> spy.sendNotification(any()))
+         .thenReturn(null);  // Void method stubbing
+    
+    Order order = new Order("item", 100.0);
+    Order result = spy.processOrder(order);  // Real processing
+    spy.sendNotification("user@email.com");  // Stubbed
+    
+    assertEquals("processed", result.getStatus());  // Real logic worked
+    scope.verify(spy, times(1), () -> spy.sendNotification("user@email.com"));
+}
+```
+
+### Spy Limitations
+
+- Cannot spy on **final classes** or **interfaces**
+- Cannot stub **final methods** or **private methods** 
+- Constructor calls during spy creation may have side effects
+
+## 7. JUnit 5 Integration
+
+**Automatic dependency injection** with annotations eliminates boilerplate setup:
+
+```java
+@ExtendWith(ContextualMockerExtension.class)
+class UserServiceTest {
+    
+    @Mock UserRepository userRepository;
+    @Mock EmailService emailService;
+    @Spy UserValidationService validationService;  // Uses real instance with selective stubbing
+    @ContextId("test-context") ContextID testContext;
+    
+    // Mocks and context are automatically injected before each test
+    
+    @Test
+    void testUserCreation() {
+        // No manual setup needed - mocks are ready to use
+        try (ContextScope scope = scopedContext(testContext)) {
+            scope.when(userRepository, () -> userRepository.existsByEmail("test@email.com"))
+                 .thenReturn(false);
+            
+            scope.when(emailService, () -> emailService.sendWelcomeEmail(any()))
+                 .thenReturn(true);
+            
+            UserService userService = new UserService(userRepository, emailService, validationService);
+            User user = userService.createUser("test@email.com", "password");
+            
+            assertNotNull(user);
+            scope.verify(userRepository, times(1), () -> userRepository.save(any()));
+            scope.verify(emailService, times(1), () -> emailService.sendWelcomeEmail(any()));
+        }
+    }
+    
+    @Test
+    void testUserValidation() {
+        // Same mocks automatically available in each test
+        try (ContextScope scope = scopedContext(testContext)) {
+            // Real validation logic (spy) + stubbed dependencies
+            assertTrue(validationService.isValidEmail("test@email.com"));
+        }
+    }
+}
+```
+
+### Custom Context IDs
+
+```java
+@ExtendWith(ContextualMockerExtension.class)
+class MultiContextTest {
+    
+    @Mock UserService userService;
+    @ContextId("admin-context") ContextID adminContext;
+    @ContextId("user-context") ContextID userContext;
+    @ContextId ContextID dynamicContext;  // Will be generated automatically
+    
+    @Test
+    void testDifferentContexts() {
+        // All contexts are available and isolated
+        when(userService, adminContext, () -> userService.getRole()).thenReturn("admin");
+        when(userService, userContext, () -> userService.getRole()).thenReturn("user");
+        
+        try (ContextScope scope = scopedContext(adminContext)) {
+            assertEquals("admin", userService.getRole());
+        }
+        
+        try (ContextScope scope = scopedContext(userContext)) {
+            assertEquals("user", userService.getRole());
+        }
+    }
+}
+```
+
+## 8. Defining Context
 
 **Context IDs identify different execution contexts** (users, tenants, requests, etc.):
 
@@ -351,7 +511,105 @@ try (ContextScope scope = scopedContext(tenantContext)) {
 verifyNoInteractions(userService, new StringContextId("empty-context"));
 ```
 
-## 9. Argument Matchers
+## 11. Enhanced Error Messages
+
+**ContextualMocker provides detailed verification failure messages** with context information and troubleshooting tips:
+
+### Basic Error Message Example
+
+When a verification fails, you get comprehensive information:
+
+```java
+try (ContextScope scope = scopedContext(userContext)) {
+    // Call method twice
+    userService.getUserData("user123");
+    userService.getUserData("user123");
+    
+    // This will fail and show enhanced error message
+    scope.verify(userService, times(1), () -> userService.getUserData("user123"));
+}
+```
+
+**Enhanced error output:**
+```
+================================================================================
+VERIFICATION FAILURE
+================================================================================
+Expected: exactly 1 time (1 invocations)
+Actual:   2 invocations
+
+Target Method:
+  UserService.getUserData(String)
+
+Expected Arguments:
+  "user123"
+
+Context:
+  StringContextId{id='user-context'}
+
+Mock Object:
+  UserService@a1b2c3d4
+
+Actual Invocations (2):
+  1. getUserData("user123") at 2023-12-01T10:30:15.123Z
+  2. getUserData("user123") at 2023-12-01T10:30:15.125Z
+
+Troubleshooting Tips:
+  - Look for unexpected additional method calls
+  - Check if the method is called multiple times unintentionally
+================================================================================
+```
+
+### No Invocations Error Example
+
+```java
+try (ContextScope scope = scopedContext(userContext)) {
+    // Forget to call the method
+    
+    // This will fail with helpful guidance
+    scope.verify(userService, times(1), () -> userService.getUserData("user123"));
+}
+```
+
+**Enhanced error output:**
+```
+================================================================================
+VERIFICATION FAILURE
+================================================================================
+Expected: exactly 1 time (1 invocations)
+Actual:   0 invocations
+
+Target Method:
+  UserService.getUserData(String)
+
+Expected Arguments:
+  "user123"
+
+Context:
+  StringContextId{id='user-context'}
+
+Actual Invocations:
+  NO INVOCATIONS RECORDED
+  - Check if the method was actually called
+  - Verify the correct context is set
+  - Ensure the mock object is being used
+
+Troubleshooting Tips:
+  - Ensure the method is called on the correct mock instance
+  - Check that the context is properly set before the method call
+  - Verify argument matchers are correct
+================================================================================
+```
+
+### Error Message Benefits
+
+- **Detailed Context**: Shows exact mock object, context ID, and target method
+- **Argument Information**: Displays expected vs actual arguments with proper formatting
+- **Invocation History**: Lists all actual invocations with timestamps
+- **Troubleshooting Tips**: Provides specific guidance based on the failure type
+- **Clear Formatting**: Easy-to-read structure with visual separators
+
+## 12. Argument Matchers
 
 **Argument matchers provide flexibility** when stubbing or verifying method calls:
 
@@ -389,6 +647,8 @@ try (ContextScope scope = scopedContext(tenantContext)) {
 // Generic matchers
 any()           // Matches any object (including null)
 eq(value)       // Matches objects equal to value
+isNull()        // Matches null values
+notNull()       // Matches non-null values
 
 // Primitive type matchers  
 anyInt()        // Matches any int
@@ -399,7 +659,174 @@ anyBoolean()    // Matches any boolean
 anyByte()       // Matches any byte
 anyShort()      // Matches any short
 anyChar()       // Matches any char
+
+// String matchers
+anyString()     // Matches any string
+contains("text") // Matches strings containing "text"
+startsWith("prefix") // Matches strings starting with "prefix"
+endsWith("suffix")   // Matches strings ending with "suffix"
+regex("pattern")     // Matches strings matching the regex pattern
+
+// Collection and range matchers
+anyCollection() // Matches any collection
+anyList()       // Matches any list
+anySet()        // Matches any set
+anyMap()        // Matches any map
+range(min, max) // Matches numbers in range [min, max]
+
+// Custom matchers
+predicate(lambda) // Matches objects satisfying the predicate
+argThat(matcher)  // Matches objects satisfying custom ArgumentMatcher
 ```
+
+### Advanced Matcher Examples
+
+```java
+try (ContextScope scope = scopedContext(userContext)) {
+    // String matching
+    scope.when(userService, () -> userService.findUser(contains("admin")))
+         .thenReturn(adminUser);
+    scope.when(userService, () -> userService.findUser(startsWith("guest_")))
+         .thenReturn(guestUser);
+    scope.when(userService, () -> userService.findUser(regex("user-\\d+")))
+         .thenReturn(regularUser);
+    
+    // Custom predicate matching
+    scope.when(paymentService, () -> paymentService.processPayment(
+            any(), 
+            predicate(amount -> amount > 100.0)))
+         .thenReturn(false); // Reject large payments
+    
+    // Range matching for numbers
+    scope.when(discountService, () -> discountService.calculateDiscount(range(50.0, 200.0)))
+         .thenReturn(0.1); // 10% discount for amounts in range
+    
+    // Custom argument matcher
+    scope.when(userService, () -> userService.updateUser(
+            argThat(user -> user.getRole() == Role.ADMIN)))
+         .thenReturn(true);
+    
+    // Verify with advanced matchers
+    scope.verify(userService, times(1), () -> 
+        userService.findUser(contains("admin")));
+    scope.verify(paymentService, never(), () -> 
+        paymentService.processPayment(any(), predicate(amount -> amount < 0)));
+}
+```
+
+## 13. Memory Management
+
+**ContextualMocker provides automatic memory management** to prevent memory leaks in long-running test suites:
+
+### Default Configuration
+
+Memory management is enabled by default with sensible defaults:
+
+```java
+// Default settings (applied automatically)
+CleanupConfiguration defaultConfig = CleanupConfiguration.defaultConfig();
+// - Max 10,000 invocations per context
+// - 5 minutes max age for invocation records  
+// - Cleanup every minute
+// - Auto cleanup enabled
+```
+
+### Custom Memory Management Configuration
+
+```java
+// Configure custom cleanup policies
+CleanupConfiguration customConfig = new CleanupConfiguration(
+    5000,    // Max 5,000 invocations per context
+    120000,  // 2 minutes max age (in milliseconds)
+    30000,   // Cleanup every 30 seconds
+    true     // Auto cleanup enabled
+);
+
+MockRegistry.setCleanupConfiguration(customConfig);
+```
+
+### Memory Usage Monitoring
+
+```java
+// Get current memory usage statistics
+MemoryUsageStats stats = MockRegistry.getMemoryUsageStats();
+
+System.out.println("Total mocks: " + stats.getTotalMocks());
+System.out.println("Total contexts: " + stats.getTotalContexts());  
+System.out.println("Total invocations: " + stats.getTotalInvocations());
+System.out.println("Total stubbing rules: " + stats.getTotalStubbingRules());
+System.out.println("Total state objects: " + stats.getTotalStates());
+
+// Example output:
+// Total mocks: 25
+// Total contexts: 12
+// Total invocations: 1,247
+// Total stubbing rules: 89
+// Total state objects: 5
+```
+
+### Manual Cleanup Operations
+
+```java
+// Perform immediate cleanup
+CleanupStats cleanupResult = MockRegistry.performCleanup();
+System.out.println("Cleanup completed: " + cleanupResult);
+// Output: CleanupStats{mocks=2, contexts=5, invocations=150, rules=8, states=1}
+
+// Clear all data for a specific mock
+boolean wasCleared = MockRegistry.clearMockData(specificMock);
+
+// Clear all data (use with caution!)
+MockRegistry.clearAllData();
+
+// Enable/disable automatic cleanup
+MockRegistry.enableAutoCleanup();
+MockRegistry.disableAutoCleanup();
+```
+
+### Memory Management in Tests
+
+```java
+@Test
+void testWithMemoryManagement() {
+    // Configure aggressive cleanup for this test
+    CleanupConfiguration testConfig = new CleanupConfiguration(
+        100,   // Very low limit
+        5000,  // 5 second age limit  
+        1000,  // Cleanup every second
+        true
+    );
+    
+    CleanupConfiguration originalConfig = MockRegistry.getCleanupConfiguration();
+    MockRegistry.setCleanupConfiguration(testConfig);
+    
+    try {
+        // Run memory-intensive test operations
+        for (int i = 0; i < 1000; i++) {
+            try (ContextScope scope = scopedContext(new StringContextId("test-" + i))) {
+                mockService.performOperation();
+                scope.verify(mockService, times(1), () -> mockService.performOperation());
+            }
+        }
+        
+        // Memory should be managed automatically
+        MemoryUsageStats stats = MockRegistry.getMemoryUsageStats();
+        assertTrue(stats.getTotalInvocations() < 500); // Aggressive cleanup prevented buildup
+        
+    } finally {
+        // Restore original configuration
+        MockRegistry.setCleanupConfiguration(originalConfig);
+    }
+}
+```
+
+### Memory Management Benefits
+
+- **Prevents Memory Leaks**: Automatic cleanup removes old data
+- **Configurable Policies**: Age-based and size-based cleanup strategies
+- **Low Overhead**: Background cleanup doesn't impact test performance  
+- **Monitoring**: Real-time statistics help identify memory usage patterns
+- **Test Isolation**: Each test can have custom cleanup policies
 
 ## 10. Stateful Mocking
 

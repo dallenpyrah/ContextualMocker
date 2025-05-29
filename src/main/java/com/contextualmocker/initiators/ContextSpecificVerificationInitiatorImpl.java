@@ -115,14 +115,8 @@ public class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMo
                 
                 int matchCount = matchingRecords.size();
 
-                if (mode instanceof ContextualMocker.TimesVerificationMode) {
-                    ((ContextualMocker.TimesVerificationMode) mode).verifyCount(matchCount, method, args);
-                } else if (mode instanceof ContextualMocker.AtLeastVerificationMode) {
-                    ((ContextualMocker.AtLeastVerificationMode) mode).verifyCount(matchCount, method, args);
-                } else if (mode instanceof ContextualMocker.AtMostVerificationMode) {
-                    ((ContextualMocker.AtMostVerificationMode) mode).verifyCount(matchCount, method, args);
-                } else {
-                }
+                // Use enhanced verification with full context
+                mode.verifyCountWithContext(matchCount, method, args, mock, contextId, invocations);
 
                 for (InvocationRecord record : matchingRecords) {
                     record.markVerified();

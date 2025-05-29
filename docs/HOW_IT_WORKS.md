@@ -31,6 +31,7 @@ All state (stubbing rules, invocation records, mock state) is managed per-mock a
   - Stubbing rules: What should happen when a method is called in a given context/state.
   - Invocation records: What actually happened (for verification).
   - State: The current state of a mock in a given context.
+  - Memory management: Automatic cleanup policies and memory usage monitoring.
 
 ### Stubbing and Verification
 
@@ -136,16 +137,112 @@ ContextualMocker provides multiple API layers for different use cases:
 
 ---
 
-## 4. Extension Points
+## 4. Enhanced Error Messages
+
+When verification fails, ContextualMocker provides detailed error information through the `VerificationFailureException`:
+
+### Error Message Components
+
+1. **Context Information**: Mock object, context ID, and target method details
+2. **Expected vs Actual**: Clear comparison of expected and actual invocation counts
+3. **Invocation History**: Complete list of actual invocations with timestamps
+4. **Troubleshooting Tips**: Specific guidance based on the failure type
+
+### Implementation Details
+
+- `VerificationFailureException` extends `AssertionError` for test framework compatibility
+- Error messages are formatted with visual separators for readability
+- Timestamps use `Instant` for precise invocation tracking
+- Tips are contextual based on whether no invocations, too few, or too many occurred
+
+---
+
+## 5. Memory Management
+
+The framework includes automatic memory management to prevent memory leaks in long-running test suites:
+
+### Cleanup Policies
+
+1. **Age-based Cleanup**: Removes invocation records older than configured threshold
+2. **Size-based Cleanup**: Limits invocations per context to prevent unbounded growth
+3. **Background Scheduler**: Automatic cleanup runs at configurable intervals
+4. **Manual Controls**: Immediate cleanup and selective data clearing
+
+### Implementation Architecture
+
+- `CleanupConfiguration`: Configurable policies for cleanup behavior
+- `MemoryUsageStats`: Real-time statistics on registry usage
+- `CleanupStats`: Results from cleanup operations
+- Background `ScheduledExecutorService` for automatic cleanup
+- Thread-safe concurrent data structures for cleanup operations
+
+### Memory Monitoring
+
+The registry tracks:
+- Total mock instances
+- Active contexts
+- Invocation record counts
+- Stubbing rule counts
+- State object counts
+
+---
+
+## 6. Spy Support
+
+Spy functionality allows partial mocking where unstubbed methods delegate to real implementations:
+
+### Spy Creation
+
+- Uses ByteBuddy to create enhanced subclasses
+- Wraps real object instances for delegation
+- Maintains reference to original object for method calls
+
+### Method Dispatch
+
+1. Check for context-specific stubbing rule
+2. If found, execute stubbed behavior
+3. If not found, delegate to real object method
+4. Record all invocations for verification
+
+### Limitations
+
+- Cannot spy on final classes or interfaces
+- Cannot stub final or private methods
+- Constructor side effects may occur during spy creation
+
+---
+
+## 7. JUnit 5 Integration
+
+The `ContextualMockerExtension` provides automatic dependency injection:
+
+### Annotation Processing
+
+- `@Mock`: Creates mock instances using reflection
+- `@Spy`: Creates spy instances, requiring accessible constructors
+- `@ContextId`: Creates context IDs, optionally with custom values
+
+### Lifecycle Management
+
+1. **Before Each Test**: Process annotations and inject dependencies
+2. **Field Injection**: Set annotated fields on test instances
+3. **Context Generation**: Create unique context IDs when not specified
+4. **Cleanup**: Framework handles cleanup through scoped contexts
+
+---
+
+## 8. Extension Points
 
 - **Custom ContextID**: Implement your own context identifier type (must implement equals/hashCode).
 - **Custom ArgumentMatchers**: Extend the matchers module for new matching logic.
+- **Custom VerificationModes**: Implement `ContextualVerificationMode` for specialized verification logic.
+- **Memory Management Policies**: Configure cleanup strategies for specific use cases.
 - **SPI for Context Resolution**: (Planned) Plug in custom logic for resolving context from frameworks (e.g., web request, MDC).
 - **Custom Mock Creation**: (Planned) Extend or replace the mock creation logic for advanced use cases.
 
 ---
 
-## 5. Adding New Features
+## 9. Adding New Features
 
 - Add new modules or classes in the appropriate package (core, handlers, initiators, matchers).
 - Update the registry and handler logic as needed.
@@ -154,7 +251,7 @@ ContextualMocker provides multiple API layers for different use cases:
 
 ---
 
-## 6. Further Reading
+## 10. Further Reading
 
 - **README.md**: Project overview and value proposition.
 - **USAGE.md**: Practical usage examples.

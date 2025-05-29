@@ -92,14 +92,8 @@ public class VerificationMethodCaptureHandler<T> implements InvocationHandler {
             
             logger.debug("Total matching invocations: {}", matchCount);
             
-            // Apply the appropriate verification mode
-            if (mode instanceof ContextualMocker.TimesVerificationMode) {
-                ((ContextualMocker.TimesVerificationMode) mode).verifyCount(matchCount, method, args);
-            } else if (mode instanceof ContextualMocker.AtLeastVerificationMode) {
-                ((ContextualMocker.AtLeastVerificationMode) mode).verifyCount(matchCount, method, args);
-            } else if (mode instanceof ContextualMocker.AtMostVerificationMode) {
-                ((ContextualMocker.AtMostVerificationMode) mode).verifyCount(matchCount, method, args);
-            }
+            // Apply the appropriate verification mode with full context
+            mode.verifyCountWithContext(matchCount, method, args, mock, contextId, invocations);
         }
         return getDefaultValue(method.getReturnType());
     }

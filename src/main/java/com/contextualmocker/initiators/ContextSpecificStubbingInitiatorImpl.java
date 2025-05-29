@@ -2,6 +2,7 @@ package com.contextualmocker.initiators;
 import com.contextualmocker.core.ContextualMocker;
 import com.contextualmocker.core.ContextHolder;
 import com.contextualmocker.handlers.ContextualInvocationHandler;
+import com.contextualmocker.handlers.SpyInvocationHandler;
 import com.contextualmocker.core.MockRegistry;
 import com.contextualmocker.core.StubbingRule;
 import com.contextualmocker.matchers.MatcherContext;
@@ -31,15 +32,30 @@ public class ContextSpecificStubbingInitiatorImpl<T> implements ContextualMocker
     @SuppressWarnings("unchecked")
     public <R> ContextualMocker.OngoingContextualStubbing<T, R> when(java.util.function.Supplier<R> methodCallSupplier) {
         Objects.requireNonNull(ContextHolder.getContext(), "ContextID must be set before stubbing");
+        
+        // Try to determine if this is a spy or regular mock by attempting to set stubbing progress on both handlers
         ContextualInvocationHandler.setStubbingInProgress(true);
+        SpyInvocationHandler.setStubbingInProgress(true);
+        
         try {
             methodCallSupplier.get();
         } finally {
             ContextualInvocationHandler.setStubbingInProgress(false);
+            SpyInvocationHandler.setStubbingInProgress(false);
         }
+        
+        // Try to get method/args from regular mock handler first
         Method method = ContextualInvocationHandler.consumeLastInvokedMethod();
         Object[] args = ContextualInvocationHandler.consumeLastInvokedArgs();
-        var matchers = ContextualInvocationHandler.consumeLastInvokedMatchers();
+        List<ArgumentMatcher<?>> matchers = ContextualInvocationHandler.consumeLastInvokedMatchers();
+        
+        // If not found, try spy handler
+        if (method == null) {
+            method = SpyInvocationHandler.consumeLastInvokedMethod();
+            args = SpyInvocationHandler.consumeLastInvokedArgs();
+            matchers = SpyInvocationHandler.consumeLastInvokedMatchers();
+        }
+        
         if (method == null) {
             throw new IllegalStateException("Failed to capture stubbed method via ThreadLocal. " +
                                             "Ensure the method call uses the mock object directly.");

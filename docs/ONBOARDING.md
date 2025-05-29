@@ -27,11 +27,17 @@ Welcome to the ContextualMocker project! This guide is designed to help new engi
 - Support advanced verification and stubbing patterns.
 - Ensure thread safety and high performance.
 - Offer an intuitive API for developers.
+- Prevent memory leaks with automatic cleanup.
+- Provide comprehensive error information for debugging.
 
 **What Makes ContextualMocker Unique:**
 - Context propagation and isolation at the core.
 - Fine-grained control over mock behavior per context.
 - Designed for modern, concurrent Java applications.
+- Enhanced error messages with detailed troubleshooting information.
+- Automatic memory management with configurable cleanup policies.
+- Comprehensive spy support for partial mocking.
+- Built-in JUnit 5 integration with annotation-based dependency injection.
 
 ---
 
@@ -42,10 +48,13 @@ ContextualMocker is built around several core components, each with a specific r
 ### Core Components
 
 - **ContextualMocker**: The main entry point for creating and managing mocks within specific contexts.
-- **MockRegistry**: Maintains a registry of all active mocks, mapping them to their respective contexts.
+- **MockRegistry**: Maintains a registry of all active mocks, mapping them to their respective contexts, with automatic memory management and cleanup policies.
 - **ContextHolder**: Manages the current execution context, enabling context propagation and isolation.
 - **Handlers**: Intercept method invocations on mocks, delegating to the appropriate logic based on context (e.g., `ContextualInvocationHandler`, `VerificationMethodCaptureHandler`).
 - **Matchers**: Provide flexible argument matching for stubbing and verification (e.g., `AnyMatcher`, `EqMatcher`, `ArgumentMatchers`).
+- **Error Reporting**: Enhanced verification failure messages with detailed context and troubleshooting guidance.
+- **Memory Management**: Automatic cleanup with configurable policies to prevent memory leaks.
+- **JUnit Integration**: Annotation-based dependency injection for seamless test integration.
 
 ### Component Interactions
 
@@ -115,7 +124,7 @@ mvn clean install
 ### Core Dependencies
 
 - **SLF4J / Logback:** Used for logging throughout the project. See `src/main/resources/logback.xml` for configuration.
-- **Mockito Core:** Used internally for certain mocking operations (if present).
+- **ByteBuddy:** Used for dynamic mock creation and proxy generation.
 - **JUnit 5:** The primary testing framework.
 - **Maven:** For build and dependency management.
 
@@ -196,10 +205,13 @@ mvn test
   - Forgetting to set the correct context before interacting with mocks.
   - Not cleaning up contexts between tests, leading to state leakage.
   - Misconfigured logging can obscure important debug information.
+  - Memory leaks from not properly cleaning up test data (use automatic cleanup features).
 - **Debugging Techniques:**
   - Use your IDE's debugger to step through handler logic.
   - Add temporary log statements for complex context interactions.
   - Review the logs in `target/` for detailed execution traces.
+  - Check memory usage statistics with `MockRegistry.getMemoryUsageStats()`.
+  - Use enhanced error messages from verification failures for detailed debugging information.
 
 ---
 
@@ -209,7 +221,9 @@ mvn test
 - **Context Isolation:** Each test or execution context is fully isolated to prevent cross-contamination of mock state.
 - **API Usability:** The API is designed to be intuitive and expressive, reducing boilerplate and cognitive load.
 - **Performance:** Efficient data structures and minimal synchronization are used to ensure high performance, even under heavy concurrency.
-- **Extensibility:** The architecture supports easy extension for new handler types, matchers, and context strategies.
+- **Memory Safety:** Automatic cleanup policies prevent memory leaks without impacting test performance.
+- **Developer Experience:** Enhanced error messages and comprehensive debugging information reduce development time.
+- **Extensibility:** The architecture supports easy extension for new handler types, matchers, verification modes, and context strategies.
 
 ---
 

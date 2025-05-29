@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+-   **Enhanced Error Messages:** Detailed verification failure messages with context information, expected vs actual invocations, invocation history with timestamps, and troubleshooting tips for easier debugging.
+-   **Automatic Memory Management:** Built-in cleanup policies to prevent memory leaks with configurable age-based and size-based cleanup strategies, background cleanup scheduler, and memory usage monitoring.
+-   **Comprehensive Spy Support:** Partial mocking with `spy()` method allows selective stubbing while delegating unstubbed methods to real implementations for legacy code integration.
+-   **JUnit 5 Integration:** Automatic dependency injection with `@Mock`, `@Spy`, and `@ContextId` annotations via `@ExtendWith(ContextualMockerExtension.class)`.
+-   **Extended Argument Matchers:** Rich set of matchers including `anyString()`, `contains()`, `startsWith()`, `endsWith()`, `regex()`, `anyCollection()`, `range()`, and custom predicates.
+-   **Improved API Design:** Added `scopedContext()` for automatic context management, direct methods for simple cases, builder pattern for multiple operations, and convenience methods like `verifyOnce()` and `verifyNever()`.
+
+### Changed
+
+-   **Verification System:** Enhanced `ContextualVerificationMode` interface with `verifyCountWithContext()` method that provides detailed error information using `VerificationFailureException`.
+-   **MockRegistry Architecture:** Expanded with `CleanupConfiguration`, `MemoryUsageStats`, and `CleanupStats` classes for comprehensive memory management.
+
 ## [1.0.0] - 2025-04-13
 
 ### Added

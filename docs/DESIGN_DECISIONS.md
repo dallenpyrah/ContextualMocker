@@ -105,18 +105,102 @@ All public APIs must be documented with JavaDocs. All features must have compreh
 
 ---
 
-## 8. Extensibility
+## 8. Enhanced Error Messages Design
 
 **Decision:**  
-The framework is designed with extension points (SPI) for future integration with test runners, context propagation, and custom matchers.
+Verification failures generate detailed error messages through `VerificationFailureException` with context information, invocation history, and troubleshooting tips.
 
 **Rationale:**  
-- Enables adaptation to new frameworks and advanced use cases.
-- Encourages community contributions.
+- Reduces debugging time by providing comprehensive failure information
+- Helps developers understand not just what failed, but why and how to fix it
+- Improves developer productivity in test-driven development workflows
+
+**Alternatives Considered:**  
+- Basic assertion errors: rejected as insufficient for complex testing scenarios
+- Separate logging vs. exception: exception chosen for immediate visibility in test output
 
 ---
 
-## 9. Alternatives and Trade-offs
+## 9. Memory Management Architecture
+
+**Decision:**  
+Automatic memory management with configurable cleanup policies including age-based and size-based strategies, background cleanup, and real-time monitoring.
+
+**Rationale:**  
+- Prevents memory leaks in long-running test suites without manual intervention
+- Configurable policies allow optimization for different test scenarios
+- Background cleanup avoids impacting test performance
+- Monitoring provides visibility into memory usage patterns
+
+**Alternatives Considered:**  
+- Manual cleanup only: rejected due to risk of memory leaks and developer burden
+- Fixed cleanup policies: rejected in favor of configurable strategies for flexibility
+- Synchronous cleanup: rejected due to performance impact on test execution
+
+---
+
+## 10. Spy Implementation Approach
+
+**Decision:**  
+Spy support using ByteBuddy to create enhanced subclasses that wrap real objects, with method dispatch checking stubbing rules before delegating to real implementations.
+
+**Rationale:**  
+- Enables integration testing with legacy code that cannot be fully mocked
+- Maintains all verification capabilities while preserving real behavior
+- Consistent with existing mock creation infrastructure
+
+**Alternatives Considered:**  
+- Interface-based proxies: rejected due to inability to spy on concrete classes
+- Reflection-based interception: rejected due to performance and complexity concerns
+
+---
+
+## 11. JUnit 5 Integration Strategy
+
+**Decision:**  
+Annotation-based dependency injection via `ContextualMockerExtension` with automatic lifecycle management and field injection.
+
+**Rationale:**  
+- Reduces boilerplate in test setup and teardown
+- Aligns with modern testing framework patterns
+- Provides automatic resource management for context and mock lifecycles
+
+**Alternatives Considered:**  
+- Manual setup in test methods: rejected due to increased boilerplate
+- Static factory methods: rejected in favor of declarative annotation approach
+
+---
+
+## 12. API Design Philosophy
+
+**Decision:**  
+Multiple API layers including scoped context management, direct methods, builder pattern, and convenience methods to serve different use cases and preferences.
+
+**Rationale:**  
+- Scoped contexts provide safety and automatic resource management
+- Direct methods reduce verbosity for simple operations
+- Builder pattern enables efficient chaining for complex scenarios
+- Convenience methods address common patterns with minimal code
+
+**Alternatives Considered:**  
+- Single API approach: rejected as insufficient for diverse use cases
+- Complex unified API: rejected in favor of focused, purpose-built APIs
+
+---
+
+## 13. Extensibility
+
+**Decision:**  
+The framework is designed with extension points (SPI) for future integration with test runners, context propagation, custom matchers, verification modes, and memory management policies.
+
+**Rationale:**  
+- Enables adaptation to new frameworks and advanced use cases
+- Encourages community contributions
+- Supports enterprise customization requirements
+
+---
+
+## 14. Alternatives and Trade-offs
 
 - **Explicit vs. Implicit Context:**  
   Explicit context is safer and more predictable, but slightly more verbose.

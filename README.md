@@ -7,17 +7,25 @@ ContextualMocker tackles these challenges with:
 * **Guaranteed Thread Safety:** Robust internal state management using concurrent data structures ensures reliable parallel test execution, even with shared mocks.
 * **Explicit Context API:** A clear and intuitive API (`forContext(contextId)`) makes defining context-specific behavior and verification straightforward and readable.
 * **Stateful Mocking:** Support for defining mock behavior based on its current state within a specific context (`whenStateIs`, `willSetStateTo`).
+* **Enhanced Error Messages:** Detailed verification failure messages with context information, expected vs actual invocations, and troubleshooting tips.
+* **Automatic Memory Management:** Built-in cleanup policies prevent memory leaks with configurable age-based and size-based cleanup strategies.
+* **Comprehensive Spy Support:** Partial mocking with real object delegation for legacy code integration.
+* **JUnit 5 Integration:** Automatic dependency injection with `@Mock`, `@Spy`, and `@ContextId` annotations.
+* **Extended Argument Matchers:** Rich set of matchers including `anyString()`, `contains()`, `regex()`, and custom predicates.
 * **Fluent API:** A BDD-style API inspired by common mocking patterns.
 * **Flexible Mocking:** Supports mocking both interfaces and concrete (non-final) classes.
 
 ## Current Status (as of latest update)
 
-* **Core Mocking & Stubbing:** Complete. Mocks can be created for both interfaces and concrete (non-final) classes. Explicit context-aware stubbing (`given`, `forContext`, `when`, `thenReturn`/`Throw`/`Answer`) is implemented and thread-safe. Argument matchers (`any`, `eq`, etc.) are supported.
-* **Core Verification:** Complete. Explicit context-aware verification (`verify`, `forContext`), verification modes (`times`, `never`, `atLeast`, `atMost`), and argument matchers are implemented. Verification failures throw clear errors. Methods `verifyNoMoreInteractions` and `verifyNoInteractions` are available.
+* **Core Mocking & Stubbing:** Complete. Mocks can be created for both interfaces and concrete (non-final) classes. Explicit context-aware stubbing (`given`, `forContext`, `when`, `thenReturn`/`Throw`/`Answer`) is implemented and thread-safe. Extended argument matchers (`anyString`, `contains`, `regex`, etc.) are supported.
+* **Spy Support:** Complete. Partial mocking with `spy()` method allows selective stubbing while delegating unstubbed methods to real implementations.
+* **Core Verification:** Complete. Explicit context-aware verification (`verify`, `forContext`), verification modes (`times`, `never`, `atLeast`, `atMost`), and argument matchers are implemented. Enhanced verification failure messages provide detailed context and troubleshooting tips.
+* **Memory Management:** Complete. Automatic cleanup policies with configurable age-based and size-based strategies prevent memory leaks. Manual cleanup controls and memory usage monitoring are available.
+* **JUnit 5 Integration:** Complete. Automatic dependency injection with `@Mock`, `@Spy`, and `@ContextId` annotations via `@ExtendWith(ContextualMockerExtension.class)`.
 * **Stubbing/Verification Separation:** Complete. Invocations during stubbing setup are correctly excluded from verification counts.
 * **Stateful Mocking:** Complete. The API (`whenStateIs`, `willSetStateTo`), state storage (`MockRegistry`), and state transition logic are implemented and thread-safe.
-* **Edge Case Tests:** Comprehensive tests cover concurrency, context isolation, state transitions, argument matchers, verification modes, exceptions, GC, and API misuse. Most core concurrency/stateful scenarios are tested and passing.
-* **Documentation:** Javadoc added to core APIs. A detailed `USAGE.md` guide is available. `DESIGN.md` and `IMPLEMENTATION_PLAN.md` document the architecture and development process.
+* **Edge Case Tests:** Comprehensive tests cover concurrency, context isolation, state transitions, argument matchers, verification modes, exceptions, GC, memory management, and API misuse. All 130+ tests are passing.
+* **Documentation:** Javadoc added to core APIs. A detailed `USAGE.md` guide is available. `DESIGN.md` and implementation documentation cover the architecture and development process.
 * **Build & Test:** Configured with Maven and includes a GitHub Actions workflow for automated building, testing, and packaging.
 
 ## Quick Start / Usage
@@ -87,6 +95,52 @@ withContext(userId)
 - **Builder pattern**: Efficient chaining of multiple operations in the same context
 - **Convenience methods**: `verifyOnce()`, `verifyNever()` for common patterns
 
+### Advanced Features
+
+**Spy Support (Partial Mocking):**
+```java
+UserService realService = new UserServiceImpl();
+UserService spy = spy(realService);
+
+// Stub only specific methods
+when(spy, context, () -> spy.externalCall()).thenReturn("stubbed");
+
+// Real methods still work
+String result = spy.processData("input"); // Calls real implementation
+```
+
+**JUnit 5 Integration:**
+```java
+@ExtendWith(ContextualMockerExtension.class)
+class MyTest {
+    @Mock MyService mockService;
+    @Spy UserService spyService;
+    @ContextId("user-123") ContextID userId;
+    
+    @Test void testWithInjectedMocks() {
+        // Mocks and context are automatically injected
+    }
+}
+```
+
+**Memory Management:**
+```java
+// Configure cleanup policies
+MockRegistry.setCleanupConfiguration(new CleanupConfiguration(
+    5000,    // Max 5000 invocations per context
+    120000,  // 2 minutes max age
+    30000,   // Cleanup every 30 seconds
+    true     // Auto cleanup enabled
+));
+
+// Get memory usage statistics
+MemoryUsageStats stats = MockRegistry.getMemoryUsageStats();
+System.out.println("Total mocks: " + stats.getTotalMocks());
+
+// Manual cleanup
+CleanupStats cleaned = MockRegistry.performCleanup();
+```
+
 For comprehensive examples including stateful mocking, argument matchers, and concurrency patterns, see [USAGE.md](USAGE.md).
 
 ## Limitations and Caveats
@@ -115,8 +169,12 @@ This project uses Apache Maven.
 | Explicit context API            | **Yes**          | No              | No              | No              | No              |
 | Context-aware stubbing/verification | **Yes**      | Workarounds     | Workarounds     | Workarounds     | Workarounds     |
 | Stateful mocking (per context)  | **Yes**          | Workarounds     | Workarounds     | Workarounds     | Workarounds     |
+| Enhanced error messages with context | **Yes**      | Basic           | Basic           | Basic           | Basic           |
+| Automatic memory management     | **Yes**          | No              | No              | No              | No              |
+| Spy support (partial mocking)  | **Yes**          | Yes             | No              | Yes             | Yes             |
+| JUnit 5 integration with annotations | **Yes**     | Yes             | No              | No              | Partial         |
+| Extended argument matchers      | **Yes**          | Yes             | Basic           | Yes             | Yes             |
 | Fluent, BDD-style API           | **Yes**          | Yes             | Partial         | Partial         | Yes             |
-| Argument matchers               | Yes              | Yes             | Yes             | Yes             | Yes             |
 | Stubbing rule expiration (TTL)  | **Yes**          | No              | No              | No              | No              |
 | Designed for parallel/concurrent tests | **Yes**   | No              | No              | No              | Partial         |
 | JavaDoc & onboarding docs       | **Yes**          | Yes             | Yes             | Yes             | Yes             |

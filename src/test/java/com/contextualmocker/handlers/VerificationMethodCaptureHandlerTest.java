@@ -77,7 +77,7 @@ class VerificationMethodCaptureHandlerTest {
             ContextHolder.setContext(contextId);
             handler.invoke(mock, method, args);
 
-            verify(timesMode).verifyCount(eq(1), eq(method), eq(args));
+            verify(timesMode).verifyCountWithContext(eq(1), eq(method), eq(args), eq(mock), eq(contextId), any());
         }
     }
 
@@ -103,7 +103,7 @@ class VerificationMethodCaptureHandlerTest {
             ContextHolder.setContext(contextId);
             handler.invoke(mock, method, args);
 
-            verify(atLeastMode).verifyCount(eq(0), eq(method), eq(args));
+            verify(atLeastMode).verifyCountWithContext(eq(0), eq(method), eq(args), eq(mock), eq(contextId), any());
         }
     }
 
