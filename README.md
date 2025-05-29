@@ -37,7 +37,7 @@ ContextualMocker provides multiple APIs for thread-safe, context-aware mocking. 
 <dependency>
     <groupId>io.github.dallenpyrah</groupId>
     <artifactId>contextual-mocker</artifactId>
-    <version>1.0.0</version> <!-- Use the latest version -->
+    <version>1.1.0</version> <!-- Use the latest version -->
 </dependency>
 ```
 

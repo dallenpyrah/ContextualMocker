@@ -4,21 +4,49 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [Unreleased]
+## [1.1.0] - 2025-05-28
 
 ### Added
 
 -   **Enhanced Error Messages:** Detailed verification failure messages with context information, expected vs actual invocations, invocation history with timestamps, and troubleshooting tips for easier debugging.
+    -   New `VerificationFailureException` class extends `AssertionError` for test framework compatibility
+    -   Formatted error messages with visual separators and contextual troubleshooting tips
+    -   Precise invocation tracking with `Instant` timestamps
 -   **Automatic Memory Management:** Built-in cleanup policies to prevent memory leaks with configurable age-based and size-based cleanup strategies, background cleanup scheduler, and memory usage monitoring.
+    -   `CleanupConfiguration` class for configurable cleanup policies
+    -   `MemoryUsageStats` for real-time memory usage monitoring
+    -   `CleanupStats` for cleanup operation results
+    -   Background `ScheduledExecutorService` for automatic cleanup
+    -   Manual cleanup controls: `performCleanup()`, `clearMockData()`, `clearAllData()`
 -   **Comprehensive Spy Support:** Partial mocking with `spy()` method allows selective stubbing while delegating unstubbed methods to real implementations for legacy code integration.
+    -   New `SpyInvocationHandler` for method dispatch logic
+    -   Support for spying on concrete classes with accessible constructors
+    -   Seamless integration with existing stubbing and verification APIs
 -   **JUnit 5 Integration:** Automatic dependency injection with `@Mock`, `@Spy`, and `@ContextId` annotations via `@ExtendWith(ContextualMockerExtension.class)`.
+    -   `ContextualMockerExtension` for automatic dependency injection
+    -   `@Mock` annotation for mock creation
+    -   `@Spy` annotation for spy creation
+    -   `@ContextId` annotation for context ID injection with optional custom values
 -   **Extended Argument Matchers:** Rich set of matchers including `anyString()`, `contains()`, `startsWith()`, `endsWith()`, `regex()`, `anyCollection()`, `range()`, and custom predicates.
+    -   String matchers: `contains()`, `startsWith()`, `endsWith()`, `regex()`
+    -   Collection matchers: `anyCollection()`, `anyList()`, `anySet()`, `anyMap()`
+    -   Utility matchers: `isNull()`, `notNull()`, `range()`, `predicate()`, `argThat()`
+    -   Type-specific matchers: `anyString()`, `anyInt()`, `anyLong()`, etc.
 -   **Improved API Design:** Added `scopedContext()` for automatic context management, direct methods for simple cases, builder pattern for multiple operations, and convenience methods like `verifyOnce()` and `verifyNever()`.
+    -   `ContextScope` class implementing `AutoCloseable` for automatic context management
+    -   `ContextualMockBuilder` for efficient chaining of multiple operations
+    -   Direct methods: `when(mock, context, methodCall)`, `verify(mock, context, mode, methodCall)`
+    -   Convenience methods: `verifyOnce()`, `verifyNever()` for common patterns
 
 ### Changed
 
 -   **Verification System:** Enhanced `ContextualVerificationMode` interface with `verifyCountWithContext()` method that provides detailed error information using `VerificationFailureException`.
 -   **MockRegistry Architecture:** Expanded with `CleanupConfiguration`, `MemoryUsageStats`, and `CleanupStats` classes for comprehensive memory management.
+-   **API Surface:** Added multiple API styles to serve different use cases while maintaining backwards compatibility with existing fluent API.
+
+### Fixed
+
+-   **Test Cleanup:** Removed redundant `ContextHolder.setContext()` calls in test methods that were causing context pollution between tests.
 
 ## [1.0.0] - 2025-04-13
 
@@ -58,4 +86,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 -   **Redundant Internal Logging:** Replaced `System.out` debug statements with structured SLF4J logging.
 
 [Keep a Changelog]: https://keepachangelog.com/en/1.0.0/
+[1.1.0]: https://github.com/dallenpyrah/contextualmocker/releases/tag/v1.1.0
 [1.0.0]: https://github.com/dallenpyrah/contextualmocker/releases/tag/v1.0.0

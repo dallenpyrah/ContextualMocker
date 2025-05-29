@@ -5,7 +5,7 @@
 
     <groupId>io.github.dallenpyrah</groupId>
     <artifactId>contextual-mocker</artifactId>
-    <version>1.0.0</version>
+    <version>1.1.0</version>
     
     <name>ContextualMocker</name>
     <description>A Parallel-Safe, Context-Aware Java Mocking Framework</description>
