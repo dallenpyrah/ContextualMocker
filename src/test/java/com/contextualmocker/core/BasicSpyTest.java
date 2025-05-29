@@ -16,8 +16,8 @@ class BasicSpyTest {
             return "real data";
         }
         
-        public String getOtherData() {
-            return "other real data";
+        public String externalCall() {
+            return "real external call";
         }
         
         public int getNumber() {
@@ -60,19 +60,19 @@ class BasicSpyTest {
         SimpleService spy = spy(realService);
 
         try (ContextScope scope = scopedContext(testContext)) {
-            // Stub the getOtherData method instead of getData - this matches the pattern from the working test
-            scope.when(spy, () -> spy.getOtherData())
-                 .thenReturn("stubbed data");
+            // Stub the externalCall method - this exactly matches the pattern from the working test
+            scope.when(spy, () -> spy.externalCall())
+                 .thenReturn("stubbed external call");
 
             // Stubbed method returns stubbed value
-            assertEquals("stubbed data", spy.getOtherData());
+            assertEquals("stubbed external call", spy.externalCall());
             
             // Other methods still use real implementation
             assertEquals("real data", spy.getData());
             assertEquals(42, spy.getNumber());
             
             // Verify interactions
-            scope.verify(spy, times(1), () -> spy.getOtherData());
+            scope.verify(spy, times(1), () -> spy.externalCall());
             scope.verify(spy, times(1), () -> spy.getData());
             scope.verify(spy, times(1), () -> spy.getNumber());
         }
