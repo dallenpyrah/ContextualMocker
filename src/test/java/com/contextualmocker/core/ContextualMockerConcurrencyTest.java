@@ -47,16 +47,14 @@ public class ContextualMockerConcurrencyTest {
             ContextID ctx = new StringContextId(UUID.randomUUID().toString());
             results.add(executor.submit(() -> {
                 String stubValue = "result-" + idx;
-                given(mockService)
-                        .forContext(ctx)
-                        .when(() -> mockService.process("input-" + idx))
-                        .thenReturn(stubValue);
+                when(mockService, ctx, () -> mockService.process("input-" + idx))
+                    .thenReturn(stubValue);
 
                 barrier.await();
 
-                ContextHolder.setContext(ctx);
-                String result = mockService.process("input-" + idx);
-                return result;
+                try (ContextScope scope = scopedContext(ctx)) {
+                    return mockService.process("input-" + idx);
+                }
             }));
         }
 
@@ -81,26 +79,24 @@ public class ContextualMockerConcurrencyTest {
         ContextID contextA = new StringContextId(UUID.randomUUID().toString());
         ContextID contextB = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-                .forContext(contextA)
-                .when(() -> mockService.process(any()))
-                .thenAnswer((contextId, mock, method, args) -> "A-" + state.incrementAndGet());
+        when(mockService, contextA, () -> mockService.process(any()))
+            .thenAnswer((contextId, mock, method, args) -> "A-" + state.incrementAndGet());
 
-        given(mockService)
-                .forContext(contextB)
-                .when(() -> mockService.process(eq("special")))
-                .thenReturn("B-special");
+        when(mockService, contextB, () -> mockService.process(eq("special")))
+            .thenReturn("B-special");
 
         List<Future<String>> results = new ArrayList<>();
         for (int i = 0; i < threadCount; i++) {
             final int idx = i;
             results.add(executor.submit(() -> {
                 if (idx % 2 == 0) {
-                    ContextHolder.setContext(contextA);
-                    return mockService.process("foo" + idx);
+                    try (ContextScope scope = scopedContext(contextA)) {
+                        return mockService.process("foo" + idx);
+                    }
                 } else {
-                    ContextHolder.setContext(contextB);
-                    return mockService.process(idx == 1 ? "special" : "other");
+                    try (ContextScope scope = scopedContext(contextB)) {
+                        return mockService.process(idx == 1 ? "special" : "other");
+                    }
                 }
             }));
         }
@@ -124,11 +120,10 @@ public class ContextualMockerConcurrencyTest {
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
         String method = "expiring";
         ContextID contextA = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(contextA)
-                .when(() -> mockService.process(method))
-                .ttlMillis(150)
-                .thenReturn("will-expire");
+        
+        when(mockService, contextA, () -> mockService.process(method))
+            .ttlMillis(150)
+            .thenReturn("will-expire");
 
         CyclicBarrier barrier = new CyclicBarrier(threadCount);
         List<Future<String>> results = new ArrayList<>();
@@ -136,12 +131,13 @@ public class ContextualMockerConcurrencyTest {
             final int idx = i;
             results.add(executor.submit(() -> {
                 barrier.await();
-                ContextHolder.setContext(contextA);
-                if (idx < 2) {
-                    return mockService.process(method);
-                } else {
-                    TimeUnit.MILLISECONDS.sleep(200);
-                    return mockService.process(method);
+                try (ContextScope scope = scopedContext(contextA)) {
+                    if (idx < 2) {
+                        return mockService.process(method);
+                    } else {
+                        TimeUnit.MILLISECONDS.sleep(200);
+                        return mockService.process(method);
+                    }
                 }
             }));
         }

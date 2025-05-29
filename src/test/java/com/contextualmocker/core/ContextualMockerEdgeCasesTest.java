@@ -29,14 +29,14 @@ class ContextualMockerEdgeCasesTest {
     @Test
     void stubbingWithNullContextThrows() {
         assertThrows(NullPointerException.class, () -> {
-            given(mockService).forContext(null).when(() -> mockService.process("foo")).thenReturn("X");
+            when(mockService, null, () -> mockService.process("foo")).thenReturn("X");
         });
     }
 
     @Test
     void verifyWithNullContextThrows() {
         assertThrows(NullPointerException.class, () -> {
-            verify(mockService).forContext(null).verify(times(1)).process("foo");
+            verify(mockService, null, times(1), () -> mockService.process("foo"));
         });
     }
 
@@ -72,8 +72,13 @@ class ContextualMockerEdgeCasesTest {
     @Test
     void usingArgumentMatcherForSingleArgumentWorks() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
-        given(mockService).forContext(ctx).when(() -> mockService.process(ArgumentMatchers.any())).thenReturn("matched");
-        assertEquals("matched", mockService.process("anything"));
+        
+        when(mockService, ctx, () -> mockService.process(ArgumentMatchers.any()))
+            .thenReturn("matched");
+            
+        try (ContextScope scope = scopedContext(ctx)) {
+            assertEquals("matched", mockService.process("anything"));
+        }
     }
 
     @Test
@@ -84,13 +89,18 @@ class ContextualMockerEdgeCasesTest {
     @Test
     void clearContextCleansUpInvocations() {
         ContextID ctx = new StringContextId(UUID.randomUUID().toString());
+        
         ContextHolder.setContext(ctx);
         mockService.process("foo");
+        
+        // Verify the invocation exists before clearing
+        verifyOnce(mockService, ctx, () -> mockService.process("foo"));
+        
         ContextHolder.clearContext();
-        ContextHolder.setContext(ctx);
-        assertThrows(AssertionError.class, () -> {
-            verify(mockService).forContext(ctx).verify(times(1)).process("foo");
-        });
+        
+        // After clearing context, invocations should be gone
+        // So verification should pass because there are no invocations to count
+        verifyNoInteractions(mockService, ctx);
     }
 
     @Test

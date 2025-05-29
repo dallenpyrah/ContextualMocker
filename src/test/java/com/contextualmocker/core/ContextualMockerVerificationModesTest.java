@@ -52,8 +52,12 @@ public class ContextualMockerVerificationModesTest {
     @Test
     void verifyNoInteractionsThrowsOnUsedMock() {
         ContextID contextId = new StringContextId(UUID.randomUUID().toString());
+        
         ContextHolder.setContext(contextId);
         mockService.process("test");
+        // Don't clear context - interactions should still be there
+        
         assertThrows(AssertionError.class, () -> verifyNoInteractions(mockService, contextId));
+        ContextHolder.clearContext();
     }
 }

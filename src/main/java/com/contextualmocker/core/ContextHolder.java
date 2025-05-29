@@ -34,6 +34,10 @@ public final class ContextHolder {
         return context;
     }
 
+    public static ContextID getCurrentContextIfSet() {
+        return currentContext.get();
+    }
+
     public static void clearContext() {
         ContextID contextToClear = currentContext.get();
         if (contextToClear != null) {

@@ -185,6 +185,30 @@ public final class ContextualMocker {
     }
 
     /**
+     * Direct stubbing method that bypasses the fluent chain for simpler usage.
+     * 
+     * @param <T> The type of the mock object.
+     * @param <R> The return type of the method being stubbed.
+     * @param mock The mock object whose behavior will be stubbed.
+     * @param context The context for this stubbing rule.
+     * @param methodCall A lambda that calls the method to be stubbed.
+     * @return An ongoing stubbing definition to specify behavior.
+     * @throws NullPointerException if mock, context, or methodCall is null.
+     */
+    public static <T, R> OngoingContextualStubbing<T, R> when(T mock, ContextID context, java.util.function.Supplier<R> methodCall) {
+        Objects.requireNonNull(mock, "Mock object cannot be null");
+        Objects.requireNonNull(context, "ContextID cannot be null");
+        Objects.requireNonNull(methodCall, "Method call supplier cannot be null");
+        
+        ContextHolder.setContext(context);
+        try {
+            return new ContextSpecificStubbingInitiatorImpl<>(mock).when(methodCall);
+        } finally {
+            // Don't clear context here as the OngoingStubbing needs it
+        }
+    }
+
+    /**
      * Initiates the verification process for a given mock object.
      *
      * @param <T> The type of the mock object.
@@ -196,6 +220,32 @@ public final class ContextualMocker {
         Objects.requireNonNull(mock, "Mock object cannot be null");
         // TODO: Add check to ensure 'mock' is actually a mock created by this framework
         return new ContextualVerificationInitiatorImpl<>(mock);
+    }
+
+    /**
+     * Direct verification method that bypasses the fluent chain for simpler usage.
+     * 
+     * @param <T> The type of the mock object.
+     * @param mock The mock object whose interactions will be verified.
+     * @param context The context for this verification.
+     * @param mode The verification mode (times, never, etc.).
+     * @param methodCall A lambda that calls the method to be verified.
+     * @throws NullPointerException if any parameter is null.
+     * @throws AssertionError if verification fails.
+     */
+    public static <T> void verify(T mock, ContextID context, ContextualVerificationMode mode, java.util.function.Supplier<?> methodCall) {
+        Objects.requireNonNull(mock, "Mock object cannot be null");
+        Objects.requireNonNull(context, "ContextID cannot be null");
+        Objects.requireNonNull(mode, "Verification mode cannot be null");
+        Objects.requireNonNull(methodCall, "Method call supplier cannot be null");
+        
+        ContextHolder.setContext(context);
+        try {
+            T verificationProxy = new ContextSpecificVerificationInitiatorImpl<>(mock).verify(mode);
+            methodCall.get();
+        } finally {
+            ContextHolder.clearContext();
+        }
     }
 
     /**
@@ -246,6 +296,55 @@ public final class ContextualMocker {
                     .collect(Collectors.joining("\n  ", "\n  ", ""));
              throw new AssertionError("Found interactions for context [" + contextId + "] when none were expected:" + details);
         }
+    }
+
+    /**
+     * Creates a context-aware builder for performing multiple operations in the same context.
+     * 
+     * @param contextId The context identifier.
+     * @return A ContextualMockBuilder for the given context.
+     * @throws NullPointerException if contextId is null.
+     */
+    public static ContextualMockBuilder withContext(ContextID contextId) {
+        return ContextualMockBuilder.withContext(contextId);
+    }
+
+    /**
+     * Creates a scoped context that automatically manages context setup and cleanup.
+     * Use in try-with-resources blocks for automatic context management.
+     * 
+     * @param contextId The context identifier.
+     * @return A ContextScope for the given context.
+     * @throws NullPointerException if contextId is null.
+     */
+    public static ContextScope scopedContext(ContextID contextId) {
+        return ContextScope.withContext(contextId);
+    }
+
+    /**
+     * Convenience method for stubbing with times(1) verification.
+     * Equivalent to verify(mock, context, times(1), methodCall).
+     * 
+     * @param <T> The type of the mock object.
+     * @param mock The mock object whose interactions will be verified.
+     * @param context The context for this verification.
+     * @param methodCall A lambda that calls the method to be verified.
+     */
+    public static <T> void verifyOnce(T mock, ContextID context, java.util.function.Supplier<?> methodCall) {
+        verify(mock, context, times(1), methodCall);
+    }
+
+    /**
+     * Convenience method for stubbing with never() verification.
+     * Equivalent to verify(mock, context, never(), methodCall).
+     * 
+     * @param <T> The type of the mock object.
+     * @param mock The mock object whose interactions will be verified.
+     * @param context The context for this verification.
+     * @param methodCall A lambda that calls the method to be verified.
+     */
+    public static <T> void verifyNever(T mock, ContextID context, java.util.function.Supplier<?> methodCall) {
+        verify(mock, context, never(), methodCall);
     }
 
 
@@ -352,7 +451,16 @@ public final class ContextualMocker {
          * @param mode The verification mode.
          * @return The mock object proxy; call the method to be verified on this proxy.
          */
-        T verify(ContextualVerificationMode mode); // Returns the mock proxy to allow method call
+        T verify(ContextualVerificationMode mode);
+
+        /**
+         * Directly verifies a method call with the specified mode and method call.
+         * This eliminates the need for a separate verify() call on the returned proxy.
+         * 
+         * @param mode The verification mode.
+         * @param methodCall A lambda that calls the method to be verified.
+         */
+        void that(ContextualVerificationMode mode, java.util.function.Supplier<?> methodCall);
     }
 
     /**

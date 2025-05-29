@@ -22,56 +22,72 @@ ContextualMocker tackles these challenges with:
 
 ## Quick Start / Usage
 
-ContextualMocker enables thread-safe, context-aware mocking for concurrent Java applications. The typical usage pattern is:
+ContextualMocker provides multiple APIs for thread-safe, context-aware mocking. **We recommend using the improved APIs** which offer better readability, automatic context management, and reduced boilerplate.
 
-1. **Add the Maven Dependency:**
-   Include the following dependency in your `pom.xml`:
-   ```xml
-   <dependency>
-       <groupId>io.github.dallenpyrah</groupId>
-       <artifactId>contextual-mocker</artifactId>
-       <version>1.0.0</version> <!-- Use the latest version -->
-   </dependency>
-   ```
+### Maven Dependency
+```xml
+<dependency>
+    <groupId>io.github.dallenpyrah</groupId>
+    <artifactId>contextual-mocker</artifactId>
+    <version>1.0.0</version> <!-- Use the latest version -->
+</dependency>
+```
 
-2. **Create a mock for your interface or class:**
-    ```java
-    // Mocking an interface
-    MyService mockInterface = ContextualMocker.mock(MyService.class);
+### Basic Usage (Recommended Approach)
 
-    // Mocking a concrete (non-final) class
-    MyConcreteService mockClass = ContextualMocker.mock(MyConcreteService.class);
-    ```
-2. **Set the context for the current thread:**
-    ```java
-    ContextHolder.setContext(contextId);
-    ```
-3. **Define context-specific stubbing:**
-    ```java
-    ContextualMocker.given(mockInterface)
-        .forContext(contextId)
-        .when(() -> mockInterface.someMethod(args))
-        .thenReturn(result);
+**1. Create mocks:**
+```java
+import static com.contextualmocker.core.ContextualMocker.*;
 
-    ContextualMocker.given(mockClass)
-        .forContext(contextId)
-        .when(() -> mockClass.someOtherMethod(args))
-        .thenReturn(result2);
-    ```
-4. **Call methods and verify interactions:**
-    ```java
-    ContextualMocker.verify(mockInterface)
-        .forContext(contextId)
-        .verify(times(1))
-        .someMethod(args);
+MyService mockService = mock(MyService.class);
+ContextID userId = new StringContextId("user-123");
+```
 
-    ContextualMocker.verify(mockClass)
-        .forContext(contextId)
-        .verify(times(1))
-        .someOtherMethod(args);
-    ```
+**2. Use automatic context management (Recommended):**
+```java
+// scopedContext() automatically manages context setup and cleanup
+try (ContextScope scope = scopedContext(userId)) {
+    // Define behavior for this context
+    scope.when(mockService, () -> mockService.getData("request"))
+         .thenReturn("user-specific-data");
+    
+    // Use the mock - context is automatically active
+    String result = mockService.getData("request");
+    assertEquals("user-specific-data", result);
+    
+    // Verify interactions in this context
+    scope.verify(mockService, times(1), () -> mockService.getData("request"));
+}
+// Context is automatically restored when scope closes
+```
 
-For comprehensive, real-world examples (including stateful mocking, argument matchers, and concurrency), see [USAGE.md](USAGE.md).
+**3. Alternative: Direct methods for simple cases:**
+```java
+// Direct stubbing - no context management needed
+when(mockService, userId, () -> mockService.getData("request"))
+    .thenReturn("user-specific-data");
+
+// Direct verification - cleaner than fluent chains
+verifyOnce(mockService, userId, () -> mockService.getData("request"));
+```
+
+**4. Builder pattern for multiple operations:**
+```java
+// Efficient for multiple stubs/verifications in same context
+withContext(userId)
+    .stub(mockService, () -> mockService.getData("request")).thenReturn("data")
+    .stub(mockService, () -> mockService.getConfig()).thenReturn("config")
+    .verify(mockService, never(), () -> mockService.deleteData());
+```
+
+### Key Benefits of the New APIs
+
+- **`scopedContext()`**: Automatic context management prevents context leaks and ensures cleanup
+- **Direct methods**: Reduce verbose fluent chains for simple stubbing/verification
+- **Builder pattern**: Efficient chaining of multiple operations in the same context
+- **Convenience methods**: `verifyOnce()`, `verifyNever()` for common patterns
+
+For comprehensive examples including stateful mocking, argument matchers, and concurrency patterns, see [USAGE.md](USAGE.md).
 
 ## Limitations and Caveats
 

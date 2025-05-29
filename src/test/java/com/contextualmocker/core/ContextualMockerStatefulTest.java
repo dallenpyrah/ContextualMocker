@@ -31,30 +31,26 @@ public class ContextualMockerStatefulTest {
     void testWhenStateIsAndWillSetStateTo() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("login"))
-            .whenStateIs(null)
-            .willSetStateTo(State.LOGGED_IN)
-            .thenReturn("Logged in");
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet("login"))
+                 .whenStateIs(null)
+                 .willSetStateTo(State.LOGGED_IN)
+                 .thenReturn("Logged in");
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("logout"))
-            .whenStateIs(State.LOGGED_IN)
-            .willSetStateTo(State.LOGGED_OUT)
-            .thenReturn("Logged out");
+            scope.when(mockService, () -> mockService.greet("logout"))
+                 .whenStateIs(State.LOGGED_IN)
+                 .willSetStateTo(State.LOGGED_OUT)
+                 .thenReturn("Logged out");
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("data"))
-            .whenStateIs(State.LOGGED_IN)
-            .thenReturn("Here is your data");
+            scope.when(mockService, () -> mockService.greet("data"))
+                 .whenStateIs(State.LOGGED_IN)
+                 .thenReturn("Here is your data");
 
-        assertEquals("Logged in", mockService.greet("login"));
-        assertEquals("Here is your data", mockService.greet("data"));
-        assertEquals("Logged out", mockService.greet("logout"));
-        assertNull(mockService.greet("data"));
+            assertEquals("Logged in", mockService.greet("login"));
+            assertEquals("Here is your data", mockService.greet("data"));
+            assertEquals("Logged out", mockService.greet("logout"));
+            assertNull(mockService.greet("data"));
+        }
     }
 
     @Test
@@ -62,24 +58,24 @@ public class ContextualMockerStatefulTest {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextID context2 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("login"))
+        when(mockService, context1, () -> mockService.greet("login"))
             .whenStateIs(null)
             .willSetStateTo(State.LOGGED_IN)
             .thenReturn("Logged in");
-        mockService.greet("login");
 
-        ContextHolder.setContext(context2);
-        assertNull(mockService.greet("data"));
+        try (ContextScope scope1 = scopedContext(context1)) {
+            mockService.greet("login");
+        }
 
-        given(mockService)
-            .forContext(context2)
-            .when(() -> mockService.greet("login"))
-            .whenStateIs(null)
-            .willSetStateTo(State.LOGGED_IN)
-            .thenReturn("Logged in");
-        assertEquals("Logged in", mockService.greet("login"));
+        try (ContextScope scope2 = scopedContext(context2)) {
+            assertNull(mockService.greet("data"));
+            
+            scope2.when(mockService, () -> mockService.greet("login"))
+                  .whenStateIs(null)
+                  .willSetStateTo(State.LOGGED_IN)
+                  .thenReturn("Logged in");
+            assertEquals("Logged in", mockService.greet("login"));
+        }
     }
 
     @Test
@@ -87,35 +83,31 @@ public class ContextualMockerStatefulTest {
         SimpleService mock2 = mock(SimpleService.class);
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("login"))
+        withContext(context1)
+            .stub(mockService, () -> mockService.greet("login"))
             .whenStateIs(null)
             .willSetStateTo(State.LOGGED_IN)
-            .thenReturn("Logged in");
-        given(mock2)
-            .forContext(context1)
-            .when(() -> mock2.greet("login"))
+            .thenReturn("Logged in")
+            .stub(mock2, () -> mock2.greet("login"))
             .whenStateIs(null)
             .willSetStateTo(State.LOGGED_IN)
             .thenReturn("Logged in 2");
 
-        assertEquals("Logged in", mockService.greet("login"));
-        assertEquals("Logged in 2", mock2.greet("login"));
+        try (ContextScope scope = scopedContext(context1)) {
+            assertEquals("Logged in", mockService.greet("login"));
+            assertEquals("Logged in 2", mock2.greet("login"));
+        }
     }
 
     @Test
     void testConcurrentStateTransitions() throws Exception {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("login"))
+        
+        when(mockService, context1, () -> mockService.greet("login"))
             .whenStateIs(null)
             .willSetStateTo(State.LOGGED_IN)
             .thenReturn("Logged in");
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("logout"))
+        when(mockService, context1, () -> mockService.greet("logout"))
             .whenStateIs(State.LOGGED_IN)
             .willSetStateTo(State.LOGGED_OUT)
             .thenReturn("Logged out");
@@ -150,22 +142,21 @@ public class ContextualMockerStatefulTest {
     @Test
     void testNullStateAsRequiredOrNextState() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("reset"))
-            .whenStateIs(State.LOGGED_IN)
-            .willSetStateTo(null)
-            .thenReturn("Reset to null state");
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet("reset"))
+                 .whenStateIs(State.LOGGED_IN)
+                 .willSetStateTo(null)
+                 .thenReturn("Reset to null state");
 
-        given(mockService)
-            .forContext(context1)
-            .when(() -> mockService.greet("login"))
-            .whenStateIs(null)
-            .willSetStateTo(State.LOGGED_IN)
-            .thenReturn("Logged in");
+            scope.when(mockService, () -> mockService.greet("login"))
+                 .whenStateIs(null)
+                 .willSetStateTo(State.LOGGED_IN)
+                 .thenReturn("Logged in");
 
-        assertEquals("Logged in", mockService.greet("login"));
-        assertEquals("Reset to null state", mockService.greet("reset"));
-        assertEquals("Reset to null state", mockService.greet("reset"));
+            assertEquals("Logged in", mockService.greet("login"));
+            assertEquals("Reset to null state", mockService.greet("reset"));
+            assertEquals("Reset to null state", mockService.greet("reset"));
+        }
     }
 }

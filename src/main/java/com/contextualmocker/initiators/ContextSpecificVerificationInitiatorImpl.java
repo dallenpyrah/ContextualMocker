@@ -33,6 +33,22 @@ public class ContextSpecificVerificationInitiatorImpl<T> implements ContextualMo
         );
     }
 
+    @Override
+    public void that(ContextualMocker.ContextualVerificationMode mode, java.util.function.Supplier<?> methodCall) {
+        Objects.requireNonNull(ContextHolder.getContext(), "ContextID must be set before verification");
+        Objects.requireNonNull(mode, "Verification mode cannot be null");
+        Objects.requireNonNull(methodCall, "Method call supplier cannot be null");
+        
+        VerificationMethodCaptureHandler<T> handler = new VerificationMethodCaptureHandler<>(mock, mode, ContextHolder.getContext());
+        @SuppressWarnings("unchecked")
+        T verificationProxy = (T) Proxy.newProxyInstance(
+                mock.getClass().getClassLoader(),
+                mock.getClass().getInterfaces(),
+                handler
+        );
+        methodCall.get();
+    }
+
     public static class VerificationMethodCaptureHandler<T> implements InvocationHandler {
         private final T mock;
         private final ContextualMocker.ContextualVerificationMode mode;

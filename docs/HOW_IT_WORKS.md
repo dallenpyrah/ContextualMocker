@@ -46,38 +46,93 @@ All state (stubbing rules, invocation records, mock state) is managed per-mock a
 
 - Mocks can have state that changes as methods are called (e.g., login/logout).
 - Stubbing rules can be conditional on the current state and can trigger state transitions.
+- State is managed per-mock and per-context, ensuring complete isolation.
+
+### ContextScope Lifecycle
+
+The `ContextScope` class provides automatic resource management:
+
+1. **Creation**: `scopedContext(contextId)` saves the current context and sets the new one
+2. **Usage**: All operations within the scope use the active context automatically
+3. **Cleanup**: When the scope closes (via try-with-resources), the previous context is restored
+4. **Nesting**: Scopes can be nested, with inner scopes temporarily overriding outer ones
+5. **Thread Safety**: Each thread maintains its own context stack via ThreadLocal storage
 
 ---
 
-## 3. Internal Flows
+## 3. Internal Flows and API Architecture
 
 ### Mock Creation
 
-- Uses ByteBuddy to generate proxy instances for interfaces.
+- Uses ByteBuddy to generate proxy instances for interfaces and concrete classes.
 - Proxies delegate all method calls to a ContextualInvocationHandler.
 
-### Stubbing Flow
+### API Architecture Overview
 
-1. User calls `given(mock).forContext(contextId).when(...).thenReturn(...)`.
-2. A stubbing rule is created and added to the registry for the mock/context.
-3. Rules can specify required state and state transitions.
+ContextualMocker provides multiple API layers for different use cases:
+
+**1. Scoped Context Management (Recommended)**
+- `scopedContext(contextId)` returns a `ContextScope` that implements `AutoCloseable`
+- Automatically manages context setup/cleanup via try-with-resources
+- Prevents context leaks and ensures proper resource management
+
+**2. Direct Methods**
+- `when(mock, context, methodCall)` for direct stubbing
+- `verify(mock, context, mode, methodCall)` for direct verification
+- Bypass verbose fluent chains for simple operations
+
+**3. Builder Pattern**
+- `withContext(contextId)` returns a `ContextualMockBuilder`
+- Efficient chaining of multiple operations in the same context
+- Methods return the builder for continued chaining
+
+**4. Convenience Methods**
+- `verifyOnce()`, `verifyNever()` for common verification patterns
+- Reduce boilerplate for frequently used operations
+
+### Stubbing Flow (New APIs)
+
+**Scoped Context Approach:**
+1. User calls `try (ContextScope scope = scopedContext(contextId))`
+2. Context is automatically set for the current thread
+3. User calls `scope.when(mock, () -> mock.method()).thenReturn(value)`
+4. Stubbing rule is created and registered for the mock/context
+5. Context is automatically restored when scope closes
+
+**Direct Method Approach:**
+1. User calls `when(mock, contextId, () -> mock.method()).thenReturn(value)`
+2. Context is temporarily set for the stubbing operation
+3. Stubbing rule is created and registered
+4. Context management is handled internally
 
 ### Invocation Flow
 
 1. When a method is called on a mock, the handler:
-   - Looks up the current context (from ContextHolder or explicit API).
-   - Looks up the current state for the mock/context.
-   - Finds the first matching stubbing rule (method, arguments, state).
-   - Executes the rule (returns value, throws, or answers dynamically).
-   - Records the invocation for later verification.
-   - Applies any state transitions.
+   - Looks up the current context (from ContextHolder or active scope)
+   - Looks up the current state for the mock/context
+   - Finds the first matching stubbing rule (method, arguments, state)
+   - Executes the rule (returns value, throws, or answers dynamically)
+   - Records the invocation for later verification
+   - Applies any state transitions
 
-### Verification Flow
+### Verification Flow (New APIs)
 
-1. User calls `verify(mock).forContext(contextId).verify(mode).method(...)`.
-2. The registry is queried for invocation records matching the method, arguments, and context.
-3. The verification mode (times, never, atLeast, atMost) is checked.
-4. If verification fails, an AssertionError is thrown with details.
+**Scoped Context Approach:**
+1. User calls `scope.verify(mock, mode, () -> mock.method())`
+2. Context is already active from the scope
+3. Registry is queried for matching invocation records
+4. Verification mode is checked and assertions made
+
+**Direct Method Approach:**
+1. User calls `verify(mock, contextId, mode, () -> mock.method())`
+2. Context is temporarily set for verification
+3. Registry queried and verification performed
+4. Context management handled internally
+
+**Streamlined Verification:**
+1. User calls `verify(mock).forContext(contextId).that(mode, () -> mock.method())`
+2. Eliminates the double `.verify()` call pattern
+3. More readable than traditional fluent approach
 
 ---
 

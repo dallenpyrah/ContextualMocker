@@ -1,303 +1,697 @@
 # ContextualMocker Usage Guide
 
-This guide provides examples on how to use the core features of ContextualMocker.
+This comprehensive guide demonstrates how to use ContextualMocker's improved APIs for efficient, thread-safe, context-aware mocking.
 
-## 1. Setup
+## Table of Contents
+1. [Setup and Dependency](#1-setup-and-dependency)
+2. [API Overview](#2-api-overview)
+3. [Recommended API: Scoped Context Management](#3-recommended-api-scoped-context-management)
+4. [Alternative APIs](#4-alternative-apis)
+5. [Creating Mocks](#5-creating-mocks)
+6. [Defining Context](#6-defining-context)
+7. [Stubbing Examples](#7-stubbing-examples)
+8. [Verification Examples](#8-verification-examples)
+9. [Argument Matchers](#9-argument-matchers)
+10. [Stateful Mocking](#10-stateful-mocking)
+11. [Concurrency and Thread Safety](#11-concurrency-and-thread-safety)
+12. [Best Practices](#12-best-practices)
 
-Add ContextualMocker as a dependency to your project (details depend on build system, e.g., Maven, Gradle).
+## 1. Setup and Dependency
 
-## 2. Creating Mocks
+Add ContextualMocker to your Maven project:
 
-Use `ContextualMocker.mock()` to create mock instances. Currently, only interfaces are supported.
+```xml
+<dependency>
+    <groupId>io.github.dallenpyrah</groupId>
+    <artifactId>contextual-mocker</artifactId>
+    <version>1.0.0</version> <!-- Use the latest version -->
+    <scope>test</scope>
+</dependency>
+```
+
+Import the static methods:
+```java
+import static com.contextualmocker.core.ContextualMocker.*;
+```
+
+## 2. API Overview
+
+ContextualMocker provides multiple APIs for different use cases:
+
+| API Style | Best For | Key Benefits |
+|-----------|----------|--------------|
+| **Scoped Context** (Recommended) | Most cases | Automatic context management, prevents leaks |
+| **Direct Methods** | Simple stubbing/verification | Reduced boilerplate, no context management |
+| **Builder Pattern** | Multiple operations in same context | Efficient chaining, readable |
+| **Original Fluent API** | Legacy compatibility | Compatible with existing code |
+
+## 3. Recommended API: Scoped Context Management
+
+**`scopedContext()` automatically manages context setup and cleanup**, preventing context leaks and ensuring proper resource management.
+
+### Basic Example
 
 ```java
-import com.contextualmocker.core.ContextualMocker;
-
 // Define your service interface
-interface MyService {
-    String greet(String name);
-    boolean process(int id);
+interface UserService {
+    String getUserData(String userId);
+    boolean updateUser(String userId, String data);
+    void deleteUser(String userId);
 }
 
-// Create a mock
-MyService mockService = ContextualMocker.mock(MyService.class);
+// Create mock and context
+UserService userService = mock(UserService.class);
+ContextID tenantContext = new StringContextId("tenant-123");
+
+// Use scoped context (RECOMMENDED)
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Define behavior for this tenant context
+    scope.when(userService, () -> userService.getUserData("user-456"))
+         .thenReturn("tenant-specific-user-data");
+    
+    // Use the mock - context is automatically active
+    String userData = userService.getUserData("user-456");
+    assertEquals("tenant-specific-user-data", userData);
+    
+    // Verify interactions in this context
+    scope.verify(userService, times(1), () -> userService.getUserData("user-456"));
+    scope.verifyNoInteractions(userService); // Verify no other calls happened
+}
+// Context is automatically cleaned up when scope closes
 ```
 
-## 3. Defining Context
-
-ContextualMocker requires an explicit context for all stubbing and verification. A context is represented by an object implementing the `ContextID` interface. A simple implementation using `String` is provided:
+### Multiple Operations in Scoped Context
 
 ```java
-import com.contextualmocker.core.ContextID;
-import com.contextualmocker.core.StringContextId;
-
-ContextID userContext1 = new StringContextId("user1");
-ContextID userContext2 = new StringContextId("user2");
-```
-
-You can create your own `ContextID` implementations if needed, ensuring they correctly implement `equals()` and `hashCode()`.
-
-## 4. Stubbing
-
-Stubbing defines how a mock should behave when its methods are called within a specific context.
-
-Note: The `.forContext(contextId)` method not only associates the stubbing/verification with a context but also sets this `contextId` as the active `ThreadLocal` context in `ContextHolder`. This means an explicit `ContextHolder.setContext(contextId)` call immediately before a `given(...).forContext(contextId)` or `verify(...).forContext(contextId)` chain is often redundant if that chain is the first to establish the context for subsequent mock interactions on the same thread.
-
-### Basic Stubbing (`thenReturn`)
-
-```java
-ContextualMocker.given(mockService)
-    .forContext(userContext1) // Specify the context
-    .when(mockService.greet("Alice")) // Specify the method call
-    .thenReturn("Hello Alice from Context 1!"); // Define the return value
-
-ContextualMocker.given(mockService)
-    .forContext(userContext2)
-    .when(mockService.greet("Alice")) // Same method, different context
-    .thenReturn("Greetings Alice from Context 2!");
-
-// --- Usage ---
-// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
-String greeting1 = mockService.greet("Alice"); // returns "Hello Alice from Context 1!"
-
-// Context is userContext2 (implicitly set by .forContext above, persists for this thread)
-String greeting2 = mockService.greet("Alice"); // returns "Greetings Alice from Context 2!"
-```
-
-### Stubbing with Exceptions (`thenThrow`)
-
-```java
-ContextualMocker.given(mockService)
-    .forContext(userContext1)
-    .when(mockService.process(99))
-    .thenThrow(new IllegalArgumentException("ID 99 is invalid in Context 1"));
-
-// --- Usage ---
-// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
-try {
-    mockService.process(99);
-} catch (IllegalArgumentException e) {
-    // Expected exception
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Set up multiple behaviors
+    scope.when(userService, () -> userService.getUserData("user-1"))
+         .thenReturn("data-1");
+    scope.when(userService, () -> userService.updateUser("user-1", "new-data"))
+         .thenReturn(true);
+    scope.when(userService, () -> userService.deleteUser("invalid-user"))
+         .thenThrow(new IllegalArgumentException("User not found"));
+    
+    // Execute operations
+    String data = userService.getUserData("user-1");
+    boolean updated = userService.updateUser("user-1", "new-data");
+    
+    // Verify all interactions
+    scope.verify(userService, times(1), () -> userService.getUserData("user-1"));
+    scope.verify(userService, times(1), () -> userService.updateUser("user-1", "new-data"));
+    scope.verify(userService, never(), () -> userService.deleteUser(any()));
 }
 ```
 
-### Stubbing with Dynamic Behavior (`thenAnswer`)
+### Nested Context Scopes
+
+**Scoped contexts can be nested**, allowing for complex testing scenarios:
 
 ```java
-import com.contextualmocker.core.ContextualAnswer;
-import com.contextualmocker.core.InvocationDetails;
+ContextID globalContext = new StringContextId("global");
+ContextID userContext = new StringContextId("user-session");
 
-ContextualMocker.given(mockService)
-    .forContext(userContext1)
-    .when(mockService.greet(ArgumentMatchers.any())) // Using an argument matcher
-    .thenAnswer(new ContextualAnswer<String>() {
-        @Override
-        public String answer(InvocationDetails invocation) {
-            String name = (String) invocation.getArguments()[0];
-            ContextID ctx = invocation.getContextId();
-            return "Dynamic greeting for " + name + " in context " + ctx;
-        }
-    });
-
-// --- Usage ---
-// Context is userContext1 (implicitly set by .forContext above, persists for this thread)
-String dynamicGreeting = mockService.greet("Bob");
-// returns "Dynamic greeting for Bob in context StringContextId{id='user1'}"
+try (ContextScope globalScope = scopedContext(globalContext)) {
+    globalScope.when(userService, () -> userService.getUserData("admin"))
+              .thenReturn("global-admin-data");
+    
+    // Nested scope for user-specific context
+    try (ContextScope userScope = scopedContext(userContext)) {
+        userScope.when(userService, () -> userService.getUserData("admin"))
+                 .thenReturn("user-session-admin-data");
+        
+        // Inner context takes precedence
+        assertEquals("user-session-admin-data", userService.getUserData("admin"));
+    }
+    
+    // Back to global context
+    assertEquals("global-admin-data", userService.getUserData("admin"));
+}
 ```
 
-## 5. Verification
+## 4. Alternative APIs
 
-Verification checks if methods on a mock were called as expected within a specific context.
+### Direct Methods (Simple Cases)
 
-### Basic Verification (`times`)
+**Direct methods bypass fluent chains** for simple stubbing and verification:
 
 ```java
-// --- Perform actions ---
-// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-mockService.greet("Charlie");
-mockService.greet("Charlie");
+ContextID context = new StringContextId("simple-context");
 
-// --- Verification ---
-ContextualMocker.verify(mockService)
-    .forContext(userContext1) // Specify context
-    .verify(ContextualMocker.times(2)) // Specify verification mode (exactly 2 times)
-    .greet("Charlie"); // Specify method call to verify
+// Direct stubbing - no context management needed
+when(userService, context, () -> userService.getUserData("user-123"))
+    .thenReturn("simple-data");
 
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.never()) // Expect zero calls
-    .greet("David"); // Method was never called with "David"
+// Direct verification - cleaner than fluent chains  
+verifyOnce(userService, context, () -> userService.getUserData("user-123"));
+verifyNever(userService, context, () -> userService.deleteUser("user-123"));
 ```
 
-### Other Verification Modes
+### Builder Pattern (Multiple Operations)
+
+**Builder pattern is efficient for multiple operations in the same context**:
 
 ```java
-// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-mockService.process(1);
-mockService.process(2);
-mockService.process(3);
-
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.atLeastOnce()) // At least 1 call
-    .process(1);
-
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.atLeast(2)) // At least 2 calls
-    .process(ArgumentMatchers.anyInt()); // Use matcher
-
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.atMost(5)) // At most 5 calls
-    .process(ArgumentMatchers.anyInt());
+// Chain multiple stubs and verifications efficiently
+withContext(tenantContext)
+    .stub(userService, () -> userService.getUserData("user-1")).thenReturn("data-1")
+    .stub(userService, () -> userService.getUserData("user-2")).thenReturn("data-2")
+    .stub(userService, () -> userService.updateUser("user-1", "new-data")).thenReturn(true)
+    .verify(userService, never(), () -> userService.deleteUser(any()))
+    .verifyNoMoreInteractions(userService);
 ```
 
-### Verifying No (More) Interactions
+### Convenience Methods
+
+**Convenience methods reduce boilerplate for common patterns**:
 
 ```java
-// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-mockService.greet("Eve");
+// Instead of verify(service, context, times(1), methodCall)
+verifyOnce(userService, tenantContext, () -> userService.getUserData("user"));
 
-// Verify the specific interaction
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.times(1))
-    .greet("Eve");
+// Instead of verify(service, context, never(), methodCall)  
+verifyNever(userService, tenantContext, () -> userService.deleteUser("user"));
 
-// Verify that *no other* interactions happened in this context
-ContextualMocker.verifyNoMoreInteractions(mockService, userContext1);
-
-// Verify that *no interactions at all* happened in another context
-ContextualMocker.verifyNoInteractions(mockService, userContext2);
+// Instead of verify(service, context, atLeastOnce(), methodCall)
+// (Note: atLeastOnce is built-in, but you can create convenience methods for other modes)
 ```
 
-## 6. Argument Matchers
+## 5. Creating Mocks
 
-Matchers provide flexibility when stubbing or verifying method calls.
+ContextualMocker supports mocking both interfaces and concrete classes:
 
 ```java
-import com.contextualmocker.matchers.ArgumentMatchers;
+// Mock interfaces (recommended)
+interface PaymentService {
+    boolean processPayment(String accountId, double amount);
+    String getPaymentStatus(String transactionId);
+}
+PaymentService paymentMock = mock(PaymentService.class);
 
-// Stubbing with matchers
-ContextualMocker.given(mockService)
-    .forContext(userContext1)
-    .when(mockService.greet(ArgumentMatchers.any())) // Matches any string
-    .thenReturn("Generic Greeting");
+// Mock concrete classes (must be non-final, with accessible constructors)
+public class EmailService {
+    public void sendEmail(String recipient, String message) { }
+    public boolean isEmailValid(String email) { return false; }
+}
+EmailService emailMock = mock(EmailService.class);
 
-ContextualMocker.given(mockService)
-    .forContext(userContext2)
-    .when(mockService.process(ArgumentMatchers.eq(10))) // Matches exactly 10
-    .thenReturn(true);
-
-// Verification with matchers
-// To perform actions, ensure userContext1 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-mockService.greet("Frank");
-mockService.process(100);
-
-ContextualMocker.verify(mockService)
-    .forContext(userContext1)
-    .verify(ContextualMocker.times(1))
-    .greet(ArgumentMatchers.any()); // Verify any string was passed
-
-// To perform actions, ensure userContext2 is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-mockService.process(10);
-
-ContextualMocker.verify(mockService)
-    .forContext(userContext2)
-    .verify(ContextualMocker.times(1))
-    .process(ArgumentMatchers.eq(10)); // Verify exactly 10 was passed
+// Mock generic interfaces
+interface Repository<T> {
+    T findById(String id);
+    void save(T entity);
+}
+Repository<User> userRepoMock = mock(Repository.class);
 ```
 
-Available matchers include `any()`, `anyInt()`, `eq()`, etc. See `ArgumentMatchers` class.
+## 6. Defining Context
 
-## 7. Stateful Mocking
+**Context IDs identify different execution contexts** (users, tenants, requests, etc.):
 
-Stateful mocking allows mock behavior to depend on and change the mock's state within a specific context.
+```java
+// String-based context IDs (most common)
+ContextID userContext = new StringContextId("user-12345");
+ContextID tenantContext = new StringContextId("tenant-acme-corp");
+ContextID requestContext = new StringContextId("request-" + UUID.randomUUID());
+
+// You can implement custom ContextID types
+public class UserContextId implements ContextID {
+    private final String userId;
+    private final String role;
+    
+    public UserContextId(String userId, String role) {
+        this.userId = userId;
+        this.role = role;
+    }
+    
+    @Override
+    public boolean equals(Object obj) { /* implement */ }
+    
+    @Override
+    public int hashCode() { /* implement */ }
+    
+    @Override
+    public String toString() { return "User{" + userId + "," + role + "}"; }
+}
+
+ContextID customContext = new UserContextId("user123", "admin");
+```
+
+## 7. Stubbing Examples
+
+### Basic Stubbing
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Return specific values
+    scope.when(userService, () -> userService.getUserData("active-user"))
+         .thenReturn("active-user-data");
+    
+    // Throw exceptions
+    scope.when(userService, () -> userService.getUserData("invalid-user"))
+         .thenThrow(new UserNotFoundException("User not found"));
+    
+    // Return different values for different arguments
+    scope.when(userService, () -> userService.updateUser("user-1", "data"))
+         .thenReturn(true);
+    scope.when(userService, () -> userService.updateUser("readonly-user", "data"))
+         .thenReturn(false);
+}
+```
+
+### Dynamic Behavior with ContextualAnswer
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    scope.when(userService, () -> userService.getUserData(any()))
+         .thenAnswer((contextId, mock, method, args) -> {
+             String userId = (String) args[0];
+             if (userId.startsWith("admin")) {
+                 return "admin-level-data";
+             } else if (userId.startsWith("guest")) {
+                 return "guest-level-data";
+             }
+             return "default-user-data";
+         });
+    
+    assertEquals("admin-level-data", userService.getUserData("admin-123"));
+    assertEquals("guest-level-data", userService.getUserData("guest-456"));
+    assertEquals("default-user-data", userService.getUserData("user-789"));
+}
+```
+
+### Stubbing with TTL (Time-To-Live)
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Stub that expires after 100ms
+    scope.when(userService, () -> userService.getUserData("temp-user"))
+         .ttlMillis(100)
+         .thenReturn("temporary-data");
+    
+    // Immediately available
+    assertEquals("temporary-data", userService.getUserData("temp-user"));
+    
+    // Wait for expiration
+    Thread.sleep(150);
+    
+    // Stub has expired, returns null (or default behavior)
+    assertNull(userService.getUserData("temp-user"));
+}
+```
+
+## 8. Verification Examples
+
+### Basic Verification
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Perform operations
+    userService.getUserData("user-1");
+    userService.getUserData("user-1"); // Called twice
+    userService.updateUser("user-2", "new-data");
+    
+    // Verify exact number of calls
+    scope.verify(userService, times(2), () -> userService.getUserData("user-1"));
+    scope.verify(userService, times(1), () -> userService.updateUser("user-2", "new-data"));
+    scope.verify(userService, never(), () -> userService.deleteUser(any()));
+}
+```
+
+### Verification Modes
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Call service multiple times
+    userService.getUserData("frequent-user");
+    userService.getUserData("frequent-user");
+    userService.getUserData("frequent-user");
+    
+    // Different verification modes
+    scope.verify(userService, times(3), () -> userService.getUserData("frequent-user"));
+    scope.verify(userService, atLeast(2), () -> userService.getUserData("frequent-user"));
+    scope.verify(userService, atMost(5), () -> userService.getUserData("frequent-user"));
+    scope.verify(userService, atLeastOnce(), () -> userService.getUserData("frequent-user"));
+}
+```
+
+### No Interaction Verification
+
+```java
+try (ContextScope scope = scopedContext(tenantContext)) {
+    userService.getUserData("user-1");
+    
+    // Verify specific interaction
+    scope.verify(userService, times(1), () -> userService.getUserData("user-1"));
+    
+    // Verify no additional interactions beyond what was already verified
+    scope.verifyNoMoreInteractions(userService);
+}
+
+// Verify no interactions at all in a different context
+verifyNoInteractions(userService, new StringContextId("empty-context"));
+```
+
+## 9. Argument Matchers
+
+**Argument matchers provide flexibility** when stubbing or verifying method calls:
+
+```java
+import static com.contextualmocker.matchers.ArgumentMatchers.*;
+
+try (ContextScope scope = scopedContext(tenantContext)) {
+    // Stub with matchers
+    scope.when(userService, () -> userService.getUserData(any()))
+         .thenReturn("generic-user-data");
+    
+    scope.when(userService, () -> userService.updateUser(eq("admin"), any()))
+         .thenReturn(true);
+    
+    scope.when(userService, () -> userService.updateUser(any(), eq("secret-data")))
+         .thenThrow(new SecurityException("Cannot update secret data"));
+    
+    // Test stubbed behavior
+    assertEquals("generic-user-data", userService.getUserData("any-user"));
+    assertTrue(userService.updateUser("admin", "any-data"));
+    
+    assertThrows(SecurityException.class, () -> 
+        userService.updateUser("regular-user", "secret-data"));
+    
+    // Verify with matchers
+    scope.verify(userService, times(1), () -> userService.getUserData(any()));
+    scope.verify(userService, times(1), () -> userService.updateUser(eq("admin"), any()));
+    scope.verify(userService, never(), () -> userService.deleteUser(any()));
+}
+```
+
+### Available Matchers
+
+```java
+// Generic matchers
+any()           // Matches any object (including null)
+eq(value)       // Matches objects equal to value
+
+// Primitive type matchers  
+anyInt()        // Matches any int
+anyLong()       // Matches any long
+anyDouble()     // Matches any double
+anyFloat()      // Matches any float
+anyBoolean()    // Matches any boolean
+anyByte()       // Matches any byte
+anyShort()      // Matches any short
+anyChar()       // Matches any char
+```
+
+## 10. Stateful Mocking
+
+**Stateful mocking allows mock behavior to change based on internal state** within each context:
 
 ```java
 // Define a stateful interface
 interface SessionService {
-    boolean login(String user, String pass);
-    String getData();
+    boolean login(String username, String password);
+    String getSecretData();
     void logout();
+    boolean isLoggedIn();
 }
 
-// Define states (can be Strings, Enums, or any Object)
-final String STATE_LOGGED_OUT = "LOGGED_OUT";
-final String STATE_LOGGED_IN = "LOGGED_IN";
+SessionService sessionMock = mock(SessionService.class);
+ContextID sessionContext = new StringContextId("session-abc123");
 
-SessionService sessionMock = ContextualMocker.mock(SessionService.class);
-ContextID sessionContext = new StringContextId("session123");
+// Define states (can be any Object)
+enum SessionState { LOGGED_OUT, LOGGED_IN, EXPIRED }
 
-// Stubbing with state transitions
-ContextualMocker.given(sessionMock)
-    .forContext(sessionContext)
-    .whenStateIs(null) // Initial state is null
-    .when(sessionMock.login("test", "pw"))
-    .willSetStateTo(STATE_LOGGED_IN) // Transition state on successful login
-    .thenReturn(true);
-
-ContextualMocker.given(sessionMock)
-    .forContext(sessionContext)
-    .whenStateIs(STATE_LOGGED_IN) // Rule applies only when logged in
-    .when(sessionMock.getData())
-    .thenReturn("Secret Data");
-
-ContextualMocker.given(sessionMock)
-    .forContext(sessionContext)
-    .whenStateIs(STATE_LOGGED_IN) // Rule applies only when logged in
-    .when(sessionMock.logout())
-    .willSetStateTo(STATE_LOGGED_OUT); // Transition state on logout
-
-// --- Usage ---
-// To perform actions, ensure sessionContext is active (e.g., via a preceding forContext in a 'given' block, or explicit ContextHolder.setContext)
-
-// Initially, getData() might return null or throw (if default not stubbed)
-// String initialData = sessionMock.getData(); // Behavior depends on default/other stubbing
-
-boolean loggedIn = sessionMock.login("test", "pw"); // returns true, state becomes LOGGED_IN
-String data = sessionMock.getData(); // returns "Secret Data"
-sessionMock.logout(); // state becomes LOGGED_OUT
-
-// Now getData() won't match the stateful rule anymore
-// String postLogoutData = sessionMock.getData(); // Behavior depends on default/other stubbing
+try (ContextScope scope = scopedContext(sessionContext)) {
+    // Login transitions from null state to LOGGED_IN
+    scope.when(sessionMock, () -> sessionMock.login("user", "pass"))
+         .whenStateIs(null)  // Only when not logged in
+         .willSetStateTo(SessionState.LOGGED_IN)
+         .thenReturn(true);
+    
+    // Invalid login doesn't change state
+    scope.when(sessionMock, () -> sessionMock.login("user", "wrong"))
+         .whenStateIs(null)
+         .thenReturn(false);  // No state change
+    
+    // Secret data only available when logged in
+    scope.when(sessionMock, () -> sessionMock.getSecretData())
+         .whenStateIs(SessionState.LOGGED_IN)
+         .thenReturn("top-secret-information");
+    
+    // Logout transitions to LOGGED_OUT
+    scope.when(sessionMock, () -> sessionMock.logout())
+         .whenStateIs(SessionState.LOGGED_IN)
+         .willSetStateTo(SessionState.LOGGED_OUT);
+    
+    // State query
+    scope.when(sessionMock, () -> sessionMock.isLoggedIn())
+         .whenStateIs(SessionState.LOGGED_IN)
+         .thenReturn(true);
+    scope.when(sessionMock, () -> sessionMock.isLoggedIn())
+         .whenStateIs(SessionState.LOGGED_OUT)
+         .thenReturn(false);
+    
+    // Test the stateful behavior
+    assertFalse(sessionMock.isLoggedIn());  // Initially logged out
+    assertNull(sessionMock.getSecretData()); // No access to secret data
+    
+    assertTrue(sessionMock.login("user", "pass")); // Login succeeds
+    assertTrue(sessionMock.isLoggedIn());   // Now logged in
+    assertEquals("top-secret-information", sessionMock.getSecretData());
+    
+    sessionMock.logout();  // Logout
+    assertFalse(sessionMock.isLoggedIn());  // Logged out again
+    assertNull(sessionMock.getSecretData()); // No more access to secret data
+}
 ```
 
-State is managed per-mock, per-context, ensuring isolation.
-
-## 8. Concurrency and Context Management
-
-ContextualMocker is designed for thread safety. However, you are responsible for managing the `ContextID` and setting it correctly (e.g., using `ContextHolder.setContext(id)`) before interacting with mocks, especially in concurrent scenarios. Ensure the correct context is active on the thread interacting with the mock.
+### Complex State Transitions
 
 ```java
-// Example using ExecutorService (simplified)
-ExecutorService executor = Executors.newFixedThreadPool(2);
-ContextID ctxA = new StringContextId("A");
-ContextID ctxB = new StringContextId("B");
+// Shopping cart example with complex state management
+interface ShoppingCart {
+    void addItem(String item, int quantity);
+    boolean removeItem(String item);
+    double calculateTotal();
+    boolean checkout(String paymentMethod);
+    void clear();
+}
 
-// Stubbing for different contexts...
-ContextualMocker.given(mockService).forContext(ctxA).when(mockService.greet("X")).thenReturn("Hello from A");
-ContextualMocker.given(mockService).forContext(ctxB).when(mockService.greet("X")).thenReturn("Hi from B");
+enum CartState { EMPTY, HAS_ITEMS, CHECKED_OUT }
 
-Future<String> futureA = executor.submit(() -> {
-    ContextHolder.setContext(ctxA); // Set context for this thread
-    String result = mockService.greet("X");
-    ContextHolder.clearContext(); // Clean up context
-    return result;
-});
+try (ContextScope scope = scopedContext(cartContext)) {
+    // Adding first item transitions from EMPTY to HAS_ITEMS
+    scope.when(cartMock, () -> cartMock.addItem(any(), anyInt()))
+         .whenStateIs(null)  // Start with empty cart
+         .willSetStateTo(CartState.HAS_ITEMS);
+    
+    // Calculate total when cart has items
+    scope.when(cartMock, () -> cartMock.calculateTotal())
+         .whenStateIs(CartState.HAS_ITEMS)
+         .thenAnswer((ctx, mock, method, args) -> {
+             // Simulate calculation based on items
+             return 29.99;
+         });
+    
+    // Checkout transitions to CHECKED_OUT
+    scope.when(cartMock, () -> cartMock.checkout(any()))
+         .whenStateIs(CartState.HAS_ITEMS)
+         .willSetStateTo(CartState.CHECKED_OUT)
+         .thenReturn(true);
+    
+    // Clear cart resets to null state
+    scope.when(cartMock, () -> cartMock.clear())
+         .willSetStateTo(null);  // Works from any state
+    
+    // Test state transitions
+    cartMock.addItem("laptop", 1);  // EMPTY -> HAS_ITEMS
+    assertEquals(29.99, cartMock.calculateTotal(), 0.01);
+    assertTrue(cartMock.checkout("credit-card"));  // HAS_ITEMS -> CHECKED_OUT
+    cartMock.clear();  // CHECKED_OUT -> null
+}
+```
 
-Future<String> futureB = executor.submit(() -> {
-    ContextHolder.setContext(ctxB); // Set context for this thread
-    String result = mockService.greet("X");
-    ContextHolder.clearContext(); // Clean up context
-    return result;
-});
+## 11. Concurrency and Thread Safety
 
-assertEquals("Hello from A", futureA.get());
-assertEquals("Hi from B", futureB.get());
+**ContextualMocker is designed for thread safety** and concurrent test execution:
+
+### Concurrent Context Isolation
+
+```java
+ExecutorService executor = Executors.newFixedThreadPool(4);
+List<Future<String>> results = new ArrayList<>();
+
+// Different contexts for concurrent execution
+ContextID[] contexts = {
+    new StringContextId("user-1"),
+    new StringContextId("user-2"), 
+    new StringContextId("user-3"),
+    new StringContextId("user-4")
+};
+
+// Set up different behavior for each context
+for (int i = 0; i < contexts.length; i++) {
+    final int userId = i + 1;
+    when(userService, contexts[i], () -> userService.getUserData("profile"))
+        .thenReturn("user-" + userId + "-profile-data");
+}
+
+// Execute concurrently - each thread uses different context
+for (int i = 0; i < contexts.length; i++) {
+    final ContextID context = contexts[i];
+    final int expectedUserId = i + 1;
+    
+    results.add(executor.submit(() -> {
+        try (ContextScope scope = scopedContext(context)) {
+            String result = userService.getUserData("profile");
+            return result;
+        }
+    }));
+}
+
+// Verify isolated results
+for (int i = 0; i < results.size(); i++) {
+    String expected = "user-" + (i + 1) + "-profile-data";
+    assertEquals(expected, results.get(i).get());
+}
 
 executor.shutdown();
 ```
 
-Always ensure `ContextHolder.clearContext()` or setting the correct context is handled, often using `try-finally` blocks or test framework extensions, to prevent context leakage between threads or tests. 
+### Thread-Safe Stateful Mocking
+
+```java
+// Multiple threads manipulating state independently
+ContextID sharedServiceContext = new StringContextId("shared-service");
+CountDownLatch latch = new CountDownLatch(3);
+
+// Set up stateful behavior
+try (ContextScope scope = scopedContext(sharedServiceContext)) {
+    scope.when(counterService, () -> counterService.increment())
+         .thenAnswer((ctx, mock, method, args) -> {
+             // Thread-safe state management is handled internally
+             return getCurrentCount() + 1;
+         });
+}
+
+// Multiple threads incrementing concurrently
+for (int i = 0; i < 3; i++) {
+    executor.submit(() -> {
+        try (ContextScope scope = scopedContext(sharedServiceContext)) {
+            counterService.increment();
+            latch.countDown();
+        }
+    });
+}
+
+latch.await();
+// Verify all interactions were recorded safely
+verifyTimes(counterService, sharedServiceContext, times(3), 
+           () -> counterService.increment());
+```
+
+## 12. Best Practices
+
+### Context Management Best Practices
+
+```java
+// ✅ GOOD: Use scopedContext() for automatic management
+try (ContextScope scope = scopedContext(contextId)) {
+    // All operations automatically use the correct context
+    scope.when(service, () -> service.method()).thenReturn(value);
+    assertEquals(value, service.method());
+}
+
+// ❌ AVOID: Manual context management (error-prone)
+ContextHolder.setContext(contextId);  
+try {
+    // Easy to forget cleanup or have exceptions
+    service.method();
+} finally {
+    ContextHolder.clearContext();  // Manual cleanup required
+}
+```
+
+### Stubbing Best Practices
+
+```java
+// ✅ GOOD: Specific, readable stubs
+try (ContextScope scope = scopedContext(userContext)) {
+    scope.when(userService, () -> userService.getUserByEmail("admin@company.com"))
+         .thenReturn(new User("admin", "admin@company.com", Role.ADMIN));
+    
+    scope.when(userService, () -> userService.getUserByEmail("user@company.com"))
+         .thenReturn(new User("user", "user@company.com", Role.USER));
+}
+
+// ❌ AVOID: Overly generic stubs that hide test intent
+try (ContextScope scope = scopedContext(userContext)) {
+    scope.when(userService, () -> userService.getUserByEmail(any()))
+         .thenReturn(someGenericUser);  // Unclear what's being tested
+}
+```
+
+### Verification Best Practices
+
+```java
+// ✅ GOOD: Verify specific, meaningful interactions
+try (ContextScope scope = scopedContext(orderContext)) {
+    orderService.processOrder("order-123");
+    
+    scope.verify(paymentService, times(1), () -> 
+        paymentService.processPayment("order-123", 99.99));
+    scope.verify(emailService, times(1), () -> 
+        emailService.sendConfirmation("user@email.com", "order-123"));
+    scope.verifyNoMoreInteractions(paymentService);
+}
+
+// ❌ AVOID: Over-verification or under-verification
+try (ContextScope scope = scopedContext(orderContext)) {
+    orderService.processOrder("order-123");
+    
+    // Over-verification: checking internal implementation details
+    scope.verify(logger, times(5), () -> logger.debug(any()));
+    
+    // Under-verification: missing important side effects
+    // Should verify payment and email were called
+}
+```
+
+### Testing Complex Scenarios
+
+```java
+@Test
+void testMultiTenantOrderProcessing() {
+    // Create contexts for different tenants
+    ContextID tenantA = new StringContextId("tenant-a");
+    ContextID tenantB = new StringContextId("tenant-b");
+    
+    // Set up tenant-specific behavior
+    when(configService, tenantA, () -> configService.getTaxRate())
+        .thenReturn(0.08);  // 8% tax for tenant A
+    when(configService, tenantB, () -> configService.getTaxRate())
+        .thenReturn(0.05);  // 5% tax for tenant B
+    
+    // Test tenant A
+    try (ContextScope scopeA = scopedContext(tenantA)) {
+        Order order = new Order("item", 100.00);
+        orderService.processOrder(order);
+        
+        scopeA.verify(taxService, times(1), () -> 
+            taxService.calculateTax(100.00, 0.08));
+    }
+    
+    // Test tenant B  
+    try (ContextScope scopeB = scopedContext(tenantB)) {
+        Order order = new Order("item", 100.00);
+        orderService.processOrder(order);
+        
+        scopeB.verify(taxService, times(1), () -> 
+            taxService.calculateTax(100.00, 0.05));
+    }
+    
+    // Verify tenant isolation
+    verifyNoInteractions(taxService, new StringContextId("tenant-c"));
+}
+```
+
+This comprehensive guide covers all the major features and patterns for using ContextualMocker effectively. The recommended `scopedContext()` approach provides the best balance of safety, readability, and ease of use for most testing scenarios.

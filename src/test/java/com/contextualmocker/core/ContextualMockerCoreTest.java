@@ -47,207 +47,181 @@ public class ContextualMockerCoreTest {
         assertNotNull(mockGenericService);
         assertTrue(mockGenericService.getClass().getName().contains("ByteBuddy"));
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
-        assertNull(mockGenericService.process("test"));
-        assertNull(mockGenericService.getItems());
-        ContextHolder.clearContext();
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            assertNull(mockGenericService.process("test"));
+            assertNull(mockGenericService.getItems());
+        }
     }
 
     @Test
     void testBasicThenReturn() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet("World"))
-                .thenReturn("Hello Context 1");
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet("World"))
+                 .thenReturn("Hello Context 1");
 
-        assertEquals("Hello Context 1", mockService.greet("World"));
-
-        ContextHolder.clearContext();
+            assertEquals("Hello Context 1", mockService.greet("World"));
+        }
     }
 
     @Test
     void testStubbingDifferentMethodsSameContext() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet("Alice"))
-                .thenReturn("Hi Alice");
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet("Alice"))
+                 .thenReturn("Hi Alice");
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.getList(5))
-                .thenReturn(List.of("a", "b", "c", "d", "e"));
+            scope.when(mockService, () -> mockService.getList(5))
+                 .thenReturn(List.of("a", "b", "c", "d", "e"));
 
-        assertEquals("Hi Alice", mockService.greet("Alice"));
-        assertEquals(List.of("a", "b", "c", "d", "e"), mockService.getList(5));
-        mockService.doSomething();
-
-        ContextHolder.clearContext();
+            assertEquals("Hi Alice", mockService.greet("Alice"));
+            assertEquals(List.of("a", "b", "c", "d", "e"), mockService.getList(5));
+            mockService.doSomething();
+        }
     }
 
     @Test
     void testStubbingSameMethodDifferentContexts() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
         ContextID context2 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet("Bob"))
-                .thenReturn("Hello Bob from Context 1");
+        
+        when(mockService, context1, () -> mockService.greet("Bob"))
+            .thenReturn("Hello Bob from Context 1");
 
-        given(mockService)
-                .forContext(context2)
-                .when(() -> mockService.greet("Bob"))
-                .thenReturn("Greetings Bob from Context 2");
+        when(mockService, context2, () -> mockService.greet("Bob"))
+            .thenReturn("Greetings Bob from Context 2");
 
-        ContextHolder.setContext(context1);
-        assertEquals("Hello Bob from Context 1", mockService.greet("Bob"));
+        try (ContextScope scope1 = scopedContext(context1)) {
+            assertEquals("Hello Bob from Context 1", mockService.greet("Bob"));
+        }
 
-        ContextHolder.setContext(context2);
-        assertEquals("Greetings Bob from Context 2", mockService.greet("Bob"));
-
-        ContextHolder.clearContext();
+        try (ContextScope scope2 = scopedContext(context2)) {
+            assertEquals("Greetings Bob from Context 2", mockService.greet("Bob"));
+        }
     }
 
     @Test
     void testStubbingWithDifferentArgumentTypes() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet("Charlie"))
-                .thenReturn("Hey Charlie");
+        withContext(context1)
+            .stub(mockService, () -> mockService.greet("Charlie"))
+            .thenReturn("Hey Charlie")
+            .stub(mockService, () -> mockService.getList(3))
+            .thenReturn(List.of("x", "y", "z"));
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.getList(3))
-                .thenReturn(List.of("x", "y", "z"));
-
-        assertEquals("Hey Charlie", mockService.greet("Charlie"));
-        assertEquals(List.of("x", "y", "z"), mockService.getList(3));
-
-        ContextHolder.clearContext();
+        try (ContextScope scope = scopedContext(context1)) {
+            assertEquals("Hey Charlie", mockService.greet("Charlie"));
+            assertEquals(List.of("x", "y", "z"), mockService.getList(3));
+        }
     }
 
     @Test
     void testAnyMatcherMatchesAnyValue() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet(any()))
-                .thenReturn("matched");
-        assertEquals("matched", mockService.greet("foo"));
-        assertEquals("matched", mockService.greet(null));
-        ContextHolder.clearContext();
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet(any()))
+                 .thenReturn("matched");
+            assertEquals("matched", mockService.greet("foo"));
+            assertEquals("matched", mockService.greet(null));
+        }
     }
 
     @Test
     void testAnyMatcherMatchesPrimitiveAndObject() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.getList(anyInt()))
-                .thenReturn(List.of("any"));
-        assertEquals(List.of("any"), mockService.getList(42));
-        assertEquals(List.of("any"), mockService.getList(0));
-        ContextHolder.clearContext();
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.getList(anyInt()))
+                 .thenReturn(List.of("any"));
+            assertEquals(List.of("any"), mockService.getList(42));
+            assertEquals(List.of("any"), mockService.getList(0));
+        }
     }
 
     @Test
     void testEqMatcherMatchesDeepEquals() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet(eq("deep")))
-                .thenReturn("deep matched");
-        assertEquals("deep matched", mockService.greet("deep"));
-        assertNull(mockService.greet("shallow"));
-        ContextHolder.clearContext();
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet(eq("deep")))
+                 .thenReturn("deep matched");
+            assertEquals("deep matched", mockService.greet("deep"));
+            assertNull(mockService.greet("shallow"));
+        }
     }
 
     @Test
     void testEqMatcherWithNull() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet(eq(null)))
-                .thenReturn("null matched");
-        assertEquals("null matched", mockService.greet(null));
-        assertNull(mockService.greet("not null"));
-        ContextHolder.clearContext();
+        
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet(eq(null)))
+                 .thenReturn("null matched");
+            assertEquals("null matched", mockService.greet(null));
+            assertNull(mockService.greet("not null"));
+        }
     }
 
     @Test
     void testMatchersWithComplexType() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
+        
         List<String> expected = List.of("a", "b");
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.getList(eq(2)))
-                .thenReturn(expected);
-        assertEquals(expected, mockService.getList(2));
-        assertNull(mockService.getList(3));
-        ContextHolder.clearContext();
+        when(mockService, context1, () -> mockService.getList(eq(2)))
+            .thenReturn(expected);
+            
+        try (ContextScope scope = scopedContext(context1)) {
+            assertEquals(expected, mockService.getList(2));
+            assertNull(mockService.getList(3));
+        }
     }
 
     @Test
     void testMatcherStateIsPerInvocation() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet(eq("A")))
-                .thenReturn("A matched");
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet(eq("B")))
-                .thenReturn("B matched");
-        assertEquals("A matched", mockService.greet("A"));
-        assertEquals("B matched", mockService.greet("B"));
-        assertNull(mockService.greet("C"));
-        ContextHolder.clearContext();
+        
+        withContext(context1)
+            .stub(mockService, () -> mockService.greet(eq("A")))
+            .thenReturn("A matched")
+            .stub(mockService, () -> mockService.greet(eq("B")))
+            .thenReturn("B matched");
+            
+        try (ContextScope scope = scopedContext(context1)) {
+            assertEquals("A matched", mockService.greet("A"));
+            assertEquals("B matched", mockService.greet("B"));
+            assertNull(mockService.greet("C"));
+        }
     }
 
     @Test
     void testBasicVerificationTimes1() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
-        ContextHolder.setContext(context1);
 
-        mockService.greet("VerifyMe");
-
-        verify(mockService)
-                .forContext(context1)
-                .verify(times(1))
-                .greet("VerifyMe");
-
-        ContextHolder.clearContext();
+        try (ContextScope scope = scopedContext(context1)) {
+            mockService.greet("VerifyMe");
+            scope.verify(mockService, times(1), () -> mockService.greet("VerifyMe"));
+        }
     }
 
     @Test
     void testVerificationIgnoresStubbingInvocations() {
         ContextID context1 = new StringContextId(UUID.randomUUID().toString());
 
-        given(mockService)
-                .forContext(context1)
-                .when(() -> mockService.greet("Setup"))
-                .thenReturn("Setup Response");
+        try (ContextScope scope = scopedContext(context1)) {
+            scope.when(mockService, () -> mockService.greet("Setup"))
+                 .thenReturn("Setup Response");
 
-        mockService.greet("ActualCall");
+            mockService.greet("ActualCall");
 
-        verify(mockService)
-                .forContext(context1)
-                .verify(times(1))
-                .greet("ActualCall");
-
-        verify(mockService)
-                .forContext(context1)
-                .verify(never())
-                .greet("Setup");
-
-        verifyNoMoreInteractions(mockService, context1);
-
-        ContextHolder.clearContext();
+            scope.verify(mockService, times(1), () -> mockService.greet("ActualCall"));
+            scope.verify(mockService, never(), () -> mockService.greet("Setup"));
+            scope.verifyNoMoreInteractions(mockService);
+        }
     }
 
     @Test
