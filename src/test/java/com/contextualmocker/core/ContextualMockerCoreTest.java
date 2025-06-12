@@ -232,4 +232,72 @@ public class ContextualMockerCoreTest {
         assertTrue(matcher.matches(null));
         assertNotNull(matcher.toString());
     }
+
+    @Test
+    void testGivenThrowsExceptionWithNonMockObject() {
+        SimpleService regularObject = new SimpleServiceImpl();
+        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            given(regularObject);
+        });
+        
+        assertTrue(exception.getMessage().contains("given()"));
+        assertTrue(exception.getMessage().contains("not a mock created by ContextualMocker"));
+        assertTrue(exception.getMessage().contains("ContextualMocker.mock()"));
+    }
+
+    @Test
+    void testGivenWorksWithValidMock() {
+        SimpleService mockObject = mock(SimpleService.class);
+        
+        assertDoesNotThrow(() -> {
+            given(mockObject);
+        });
+    }
+
+    @Test
+    void testVerifyThrowsExceptionWithNonMockObject() {
+        SimpleService regularObject = new SimpleServiceImpl();
+        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            verify(regularObject);
+        });
+        
+        assertTrue(exception.getMessage().contains("verify()"));
+        assertTrue(exception.getMessage().contains("not a mock created by ContextualMocker"));
+        assertTrue(exception.getMessage().contains("ContextualMocker.mock()"));
+    }
+
+    @Test
+    void testVerifyWorksWithValidMock() {
+        SimpleService mockObject = mock(SimpleService.class);
+        
+        assertDoesNotThrow(() -> {
+            verify(mockObject);
+        });
+    }
+
+    @Test
+    void testGivenThrowsExceptionWithStringObject() {
+        String regularString = "not a mock";
+        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            given(regularString);
+        });
+        
+        assertTrue(exception.getMessage().contains("given()"));
+        assertTrue(exception.getMessage().contains("not a mock created by ContextualMocker"));
+    }
+
+    @Test
+    void testVerifyThrowsExceptionWithStringObject() {
+        String regularString = "not a mock";
+        
+        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, () -> {
+            verify(regularString);
+        });
+        
+        assertTrue(exception.getMessage().contains("verify()"));
+        assertTrue(exception.getMessage().contains("not a mock created by ContextualMocker"));
+    }
 }

@@ -280,7 +280,7 @@ public final class ContextualMocker {
      */
     public static <T> ContextualStubbingInitiator<T> given(T mock) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
-        // TODO: Add check to ensure 'mock' is actually a mock created by this framework
+        validateMockObject(mock, "given");
         return new ContextualStubbingInitiatorImpl<>(mock);
     }
 
@@ -318,7 +318,7 @@ public final class ContextualMocker {
      */
     public static <T> ContextualVerificationInitiator<T> verify(T mock) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
-        // TODO: Add check to ensure 'mock' is actually a mock created by this framework
+        validateMockObject(mock, "verify");
         return new ContextualVerificationInitiatorImpl<>(mock);
     }
 
@@ -447,7 +447,23 @@ public final class ContextualMocker {
         verify(mock, context, never(), methodCall);
     }
 
-
+    private static boolean isMockObject(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        
+        String className = obj.getClass().getName();
+        return className.contains("ByteBuddy");
+    }
+    
+    private static void validateMockObject(Object mock, String methodName) {
+        if (!isMockObject(mock)) {
+            throw new IllegalArgumentException(
+                "Object passed to " + methodName + "() is not a mock created by ContextualMocker. " +
+                "Only mocks created via ContextualMocker.mock() or ContextualMocker.spy() can be used."
+            );
+        }
+    }
 
     /**
      * Initiates stubbing for a specific mock, requiring context next.
