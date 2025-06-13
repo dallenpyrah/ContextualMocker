@@ -54,6 +54,11 @@
             <version>5.10.0</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.github.dallenpyrah</groupId>
+            <artifactId>contextual-mocker-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>
