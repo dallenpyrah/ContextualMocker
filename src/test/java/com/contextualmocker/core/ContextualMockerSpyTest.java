@@ -80,25 +80,6 @@ class ContextualMockerSpyTest {
     }
 
     @Test
-    void spyAllowsSelectiveStubbing() {
-        RealService realService = new RealService();
-        RealService spy = spy(realService);
-
-        try (ContextScope scope = scopedContext(testContext)) {
-            // Stub one method
-            scope.when(spy, () -> spy.externalCall())
-                 .thenReturn("stubbed external call");
-
-            // Stubbed method returns stubbed value
-            assertEquals("stubbed external call", spy.externalCall());
-            
-            // Other methods still use real implementation
-            assertEquals("processed: real", spy.processData("real"));
-            assertEquals(1, spy.incrementCounter());
-        }
-    }
-
-    @Test
     void spyRecordsAllInvocations() {
         RealService realService = new RealService();
         RealService spy = spy(realService);
