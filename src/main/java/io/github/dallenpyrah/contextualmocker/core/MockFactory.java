@@ -81,6 +81,7 @@ public final class MockFactory {
             return (T) new ByteBuddy()
                     .subclass(Object.class)
                     .implement(classToMock)
+                    .implement(ContextualMockerMarker.class)
                     .method(ElementMatchers.any())
                     .intercept(InvocationHandlerAdapter.of(handler))
                     .make()
@@ -100,6 +101,7 @@ public final class MockFactory {
         try {
             net.bytebuddy.dynamic.DynamicType.Builder<? extends T> builder = new ByteBuddy()
                     .subclass(classToMock)
+                    .implement(ContextualMockerMarker.class)
                     .method(ElementMatchers.not(ElementMatchers.isFinal())
                             .and(ElementMatchers.not(ElementMatchers.isStatic()))
                             .and(ElementMatchers.not(ElementMatchers.isPrivate())))
@@ -165,6 +167,7 @@ public final class MockFactory {
     private static <T> T createSpyInstance(Class<T> classToSpy, InvocationHandler handler) throws Exception {
         net.bytebuddy.dynamic.DynamicType.Builder<? extends T> builder = new ByteBuddy()
                 .subclass(classToSpy)
+                .implement(ContextualMockerMarker.class)
                 .method(ElementMatchers.not(ElementMatchers.isFinal())
                         .and(ElementMatchers.not(ElementMatchers.isStatic()))
                         .and(ElementMatchers.not(ElementMatchers.isPrivate())))

@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [Unreleased]
+
+### Added
+
+-   **Mock Identification:** Added `ContextualMockerMarker` interface and public `isMock()` method for reliable mock identification.
+    -   All mocks and spies now implement `ContextualMockerMarker` interface
+    -   Public `isMock(Object)` method to check if an object is a mock created by ContextualMocker
+    -   Validation in `given()` and `verify()` methods to ensure only ContextualMocker mocks are used
+
 ## [1.1.0] - 2025-05-28
 
 ### Added

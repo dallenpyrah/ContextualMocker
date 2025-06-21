@@ -138,7 +138,9 @@ public final class ContextualMocker {
      */
     public static <T> ContextualStubbingInitiator<T> given(T mock) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
-        // TODO: Add check to ensure 'mock' is actually a mock created by this framework
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
         return new ContextualStubbingInitiatorImpl<>(mock);
     }
 
@@ -157,6 +159,9 @@ public final class ContextualMocker {
         Objects.requireNonNull(mock, "Mock object cannot be null");
         Objects.requireNonNull(context, "ContextID cannot be null");
         Objects.requireNonNull(methodCall, "Method call supplier cannot be null");
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
         
         ContextHolder.setContext(context);
         try {
@@ -176,7 +181,9 @@ public final class ContextualMocker {
      */
     public static <T> ContextualVerificationInitiator<T> verify(T mock) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
-        // TODO: Add check to ensure 'mock' is actually a mock created by this framework
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
         return new ContextualVerificationInitiatorImpl<>(mock);
     }
 
@@ -196,6 +203,9 @@ public final class ContextualMocker {
         Objects.requireNonNull(context, "ContextID cannot be null");
         Objects.requireNonNull(mode, "Verification mode cannot be null");
         Objects.requireNonNull(methodCall, "Method call supplier cannot be null");
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
         
         ContextHolder.setContext(context);
         try {
@@ -219,6 +229,9 @@ public final class ContextualMocker {
     public static <T> void verifyNoMoreInteractions(T mock, ContextID contextId) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
         Objects.requireNonNull(contextId, "ContextID cannot be null for verification");
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
 
         List<InvocationRecord> unverifiedInvocations = MockRegistry.getInvocationRecords(mock, contextId)
                 .stream()
@@ -245,6 +258,9 @@ public final class ContextualMocker {
     public static <T> void verifyNoInteractions(T mock, ContextID contextId) {
         Objects.requireNonNull(mock, "Mock object cannot be null");
         Objects.requireNonNull(contextId, "ContextID cannot be null for verification");
+        if (!isMock(mock)) {
+            throw new IllegalArgumentException("Object is not a mock created by ContextualMocker: " + mock.getClass().getName());
+        }
 
         List<InvocationRecord> invocations = MockRegistry.getInvocationRecords(mock, contextId);
         
@@ -303,6 +319,21 @@ public final class ContextualMocker {
      */
     public static <T> void verifyNever(T mock, ContextID context, java.util.function.Supplier<?> methodCall) {
         verify(mock, context, never(), methodCall);
+    }
+    
+    /**
+     * Checks if the given object is a mock created by this framework.
+     * 
+     * @param object The object to check.
+     * @return true if the object is a mock created by ContextualMocker, false otherwise.
+     */
+    public static boolean isMock(Object object) {
+        if (object == null) {
+            return false;
+        }
+        
+        // Check if the object implements our marker interface
+        return object instanceof ContextualMockerMarker;
     }
     
     private static class ContextualStubbingInitiatorImpl<T> implements ContextualStubbingInitiator<T> {

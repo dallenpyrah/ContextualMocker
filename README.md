@@ -186,11 +186,12 @@ This project uses Apache Maven.
 
 ## Contributing
 
-Contributions are welcome! Please refer to the design documents and implementation plan.
+Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTING.md) for details on our code of conduct, development setup, and the process for submitting pull requests.
 
 ## Documentation
 
 - [ONBOARDING.md](docs/ONBOARDING.md): Onboarding guide for new engineers and contributors.
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md): Guidelines for contributing to the project.
 - [USAGE.md](USAGE.md): Detailed usage guide with practical examples.
 - [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md): Technical walkthrough of the framework.
 - [docs/DESIGN.md](docs/DESIGN.md): In-depth design and architecture documentation.
