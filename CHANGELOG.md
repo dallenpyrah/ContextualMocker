@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ### Added
 
+-   **ArgumentCaptor Support:** Added `ArgumentCaptor` class for capturing arguments passed to mocked methods during verification.
+    -   `ArgumentCaptor.forClass(Class<T>)` factory method for creating type-safe captors
+    -   `capture()` method returns an argument matcher that captures values
+    -   `getValue()` method to retrieve the last captured value
+    -   `getAllValues()` method to retrieve all captured values from multiple invocations
+    -   Full integration with context-aware verification
+    -   Thread-safe implementation for concurrent test execution
 -   **Mock Identification:** Added `ContextualMockerMarker` interface and public `isMock()` method for reliable mock identification.
     -   All mocks and spies now implement `ContextualMockerMarker` interface
     -   Public `isMock(Object)` method to check if an object is a mock created by ContextualMocker

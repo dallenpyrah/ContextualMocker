@@ -15,10 +15,11 @@ This comprehensive guide demonstrates how to use ContextualMocker's improved API
 10. [Verification Examples](#10-verification-examples)
 11. [Enhanced Error Messages](#11-enhanced-error-messages)
 12. [Argument Matchers](#12-argument-matchers)
-13. [Memory Management](#13-memory-management)
-14. [Stateful Mocking](#14-stateful-mocking)
-15. [Concurrency and Thread Safety](#15-concurrency-and-thread-safety)
-16. [Best Practices](#16-best-practices)
+13. [ArgumentCaptors](#13-argumentcaptors)
+14. [Memory Management](#14-memory-management)
+15. [Stateful Mocking](#15-stateful-mocking)
+16. [Concurrency and Thread Safety](#16-concurrency-and-thread-safety)
+17. [Best Practices](#17-best-practices)
 
 ## 1. Setup and Dependency
 
@@ -714,7 +715,271 @@ try (ContextScope scope = scopedContext(userContext)) {
 }
 ```
 
-## 13. Memory Management
+## 13. ArgumentCaptors
+
+**ArgumentCaptors allow you to capture arguments** passed to mocked methods for detailed verification and inspection. This is especially useful when you need to verify complex objects or validate specific properties of arguments.
+
+### Basic ArgumentCaptor Usage
+
+```java
+import static com.contextualmocker.matchers.ArgumentMatchers.*;
+import com.contextualmocker.captors.ArgumentCaptor;
+
+// Create a captor for the argument type
+ArgumentCaptor<String> stringCaptor = ArgumentCaptor.forClass(String.class);
+ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Execute code that calls the mock
+    userService.createUser("john.doe@example.com", "John Doe");
+    
+    // Capture the argument during verification
+    scope.verify(userService, times(1), () -> 
+        userService.createUser(stringCaptor.capture(), any()));
+    
+    // Access the captured value
+    String capturedEmail = stringCaptor.getValue();
+    assertEquals("john.doe@example.com", capturedEmail);
+    assertTrue(capturedEmail.contains("@"));
+}
+```
+
+### Capturing Multiple Arguments
+
+```java
+ArgumentCaptor<String> emailCaptor = ArgumentCaptor.forClass(String.class);
+ArgumentCaptor<String> nameCaptor = ArgumentCaptor.forClass(String.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Multiple method calls
+    userService.createUser("user1@example.com", "User One");
+    userService.createUser("user2@example.com", "User Two");
+    userService.createUser("user3@example.com", "User Three");
+    
+    // Capture all invocations
+    scope.verify(userService, times(3), () -> 
+        userService.createUser(emailCaptor.capture(), nameCaptor.capture()));
+    
+    // Get all captured values
+    List<String> allEmails = emailCaptor.getAllValues();
+    List<String> allNames = nameCaptor.getAllValues();
+    
+    assertEquals(3, allEmails.size());
+    assertEquals(Arrays.asList("user1@example.com", "user2@example.com", "user3@example.com"), allEmails);
+    assertEquals(Arrays.asList("User One", "User Two", "User Three"), allNames);
+    
+    // Get specific captured values
+    assertEquals("user2@example.com", emailCaptor.getAllValues().get(1));
+    assertEquals("User Two", nameCaptor.getAllValues().get(1));
+}
+```
+
+### Capturing Complex Objects
+
+```java
+public class Order {
+    private String id;
+    private List<OrderItem> items;
+    private double total;
+    private OrderStatus status;
+    // getters and setters...
+}
+
+ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Process an order
+    orderService.processOrder(new Order("ORD-123", items, 99.99, OrderStatus.PENDING));
+    
+    // Capture and inspect the order
+    scope.verify(paymentService, times(1), () -> 
+        paymentService.chargePayment(orderCaptor.capture()));
+    
+    Order capturedOrder = orderCaptor.getValue();
+    assertEquals("ORD-123", capturedOrder.getId());
+    assertEquals(99.99, capturedOrder.getTotal(), 0.01);
+    assertEquals(OrderStatus.PENDING, capturedOrder.getStatus());
+    assertFalse(capturedOrder.getItems().isEmpty());
+}
+```
+
+### Context-Aware Capturing
+
+**ArgumentCaptors work seamlessly with ContextualMocker's context system**:
+
+```java
+ContextID userContext = new StringContextId("user-123");
+ContextID adminContext = new StringContextId("admin-456");
+ArgumentCaptor<String> actionCaptor = ArgumentCaptor.forClass(String.class);
+
+// Different behavior for different contexts
+when(auditService, userContext, () -> auditService.logAction(any()))
+    .thenReturn(true);
+when(auditService, adminContext, () -> auditService.logAction(any()))
+    .thenReturn(true);
+
+// User context actions
+try (ContextScope scope = scopedContext(userContext)) {
+    auditService.logAction("view_profile");
+    auditService.logAction("update_profile");
+    
+    scope.verify(auditService, times(2), () -> 
+        auditService.logAction(actionCaptor.capture()));
+    
+    List<String> userActions = actionCaptor.getAllValues();
+    assertEquals(Arrays.asList("view_profile", "update_profile"), userActions);
+}
+
+// Admin context actions - separate capture
+actionCaptor = ArgumentCaptor.forClass(String.class); // New captor for clean state
+try (ContextScope scope = scopedContext(adminContext)) {
+    auditService.logAction("delete_user");
+    auditService.logAction("grant_permission");
+    
+    scope.verify(auditService, times(2), () -> 
+        auditService.logAction(actionCaptor.capture()));
+    
+    List<String> adminActions = actionCaptor.getAllValues();
+    assertEquals(Arrays.asList("delete_user", "grant_permission"), adminActions);
+}
+```
+
+### Combining Captors with Matchers
+
+```java
+ArgumentCaptor<String> userIdCaptor = ArgumentCaptor.forClass(String.class);
+ArgumentCaptor<Map<String, Object>> dataCaptor = ArgumentCaptor.forClass(Map.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    Map<String, Object> userData = new HashMap<>();
+    userData.put("name", "John");
+    userData.put("age", 30);
+    
+    userService.updateUserData("user-123", userData);
+    
+    // Mix captors with regular matchers
+    scope.verify(userService, times(1), () -> 
+        userService.updateUserData(
+            userIdCaptor.capture(),  // Capture first argument
+            dataCaptor.capture()     // Capture second argument
+        ));
+    
+    // Verify captured values
+    assertEquals("user-123", userIdCaptor.getValue());
+    Map<String, Object> capturedData = dataCaptor.getValue();
+    assertEquals("John", capturedData.get("name"));
+    assertEquals(30, capturedData.get("age"));
+}
+```
+
+### Advanced Capture Patterns
+
+```java
+// Capture only specific invocations using conditional verification
+ArgumentCaptor<Double> amountCaptor = ArgumentCaptor.forClass(Double.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Multiple payment attempts
+    paymentService.processPayment("user-1", 50.0);
+    paymentService.processPayment("user-2", 150.0);
+    paymentService.processPayment("user-3", 75.0);
+    paymentService.processPayment("user-4", 200.0);
+    
+    // Capture only large payments (> 100)
+    scope.verify(paymentService, atLeast(2), () -> 
+        paymentService.processPayment(
+            any(), 
+            and(amountCaptor.capture(), predicate(amount -> amount > 100.0))
+        ));
+    
+    List<Double> largePayments = amountCaptor.getAllValues();
+    assertEquals(2, largePayments.size());
+    assertTrue(largePayments.contains(150.0));
+    assertTrue(largePayments.contains(200.0));
+}
+```
+
+### Capture and Stubbing Together
+
+```java
+ArgumentCaptor<String> requestCaptor = ArgumentCaptor.forClass(String.class);
+
+try (ContextScope scope = scopedContext(context)) {
+    // Stub to return different responses based on input
+    scope.when(apiService, () -> apiService.makeRequest(any()))
+         .thenAnswer((ctx, mock, method, args) -> {
+             String request = (String) args[0];
+             return "Response for: " + request;
+         });
+    
+    // Make several API calls
+    String response1 = apiService.makeRequest("GET /users");
+    String response2 = apiService.makeRequest("POST /orders");
+    
+    // Capture and verify all requests
+    scope.verify(apiService, times(2), () -> 
+        apiService.makeRequest(requestCaptor.capture()));
+    
+    List<String> allRequests = requestCaptor.getAllValues();
+    assertEquals("GET /users", allRequests.get(0));
+    assertEquals("POST /orders", allRequests.get(1));
+    
+    // Verify responses
+    assertEquals("Response for: GET /users", response1);
+    assertEquals("Response for: POST /orders", response2);
+}
+```
+
+### Best Practices for ArgumentCaptors
+
+1. **Create fresh captors for each test** to avoid state pollution:
+```java
+@BeforeEach
+void setUp() {
+    // Don't reuse captors between tests
+    stringCaptor = ArgumentCaptor.forClass(String.class);
+}
+```
+
+2. **Use type-safe captors** with proper generics:
+```java
+// Good: Type-safe
+ArgumentCaptor<List<String>> listCaptor = ArgumentCaptor.forClass(List.class);
+
+// Avoid: Raw types
+ArgumentCaptor listCaptor = ArgumentCaptor.forClass(List.class);
+```
+
+3. **Verify before capturing** to ensure the method was actually called:
+```java
+// The verify call will fail if method wasn't called, preventing NPE
+scope.verify(service, times(1), () -> service.method(captor.capture()));
+String value = captor.getValue(); // Safe to access
+```
+
+4. **Use getAllValues() for multiple invocations**:
+```java
+// For single invocation
+String singleValue = captor.getValue();
+
+// For multiple invocations
+List<String> allValues = captor.getAllValues();
+```
+
+5. **Combine with custom assertions** for complex verification:
+```java
+ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+scope.verify(service, times(1), () -> service.createUser(userCaptor.capture()));
+
+User capturedUser = userCaptor.getValue();
+assertAll("User validation",
+    () -> assertNotNull(capturedUser.getId()),
+    () -> assertTrue(capturedUser.getEmail().contains("@")),
+    () -> assertTrue(capturedUser.getCreatedAt().isBefore(Instant.now()))
+);
+```
+
+## 14. Memory Management
 
 **ContextualMocker provides automatic memory management** to prevent memory leaks in long-running test suites:
 
@@ -828,7 +1093,7 @@ void testWithMemoryManagement() {
 - **Monitoring**: Real-time statistics help identify memory usage patterns
 - **Test Isolation**: Each test can have custom cleanup policies
 
-## 10. Stateful Mocking
+## 15. Stateful Mocking
 
 **Stateful mocking allows mock behavior to change based on internal state** within each context:
 
@@ -937,7 +1202,7 @@ try (ContextScope scope = scopedContext(cartContext)) {
 }
 ```
 
-## 11. Concurrency and Thread Safety
+## 16. Concurrency and Thread Safety
 
 **ContextualMocker is designed for thread safety** and concurrent test execution:
 
@@ -1016,7 +1281,7 @@ verifyTimes(counterService, sharedServiceContext, times(3),
            () -> counterService.increment());
 ```
 
-## 12. Best Practices
+## 17. Best Practices
 
 ### Context Management Best Practices
 

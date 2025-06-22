@@ -4,6 +4,11 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import io.github.dallenpyrah.contextualmocker.core.ContextID;
+import io.github.dallenpyrah.contextualmocker.utils.DefaultValueProvider;
+import io.github.dallenpyrah.contextualmocker.captors.ArgumentCaptor;
 
 /**
  * Provides static methods for creating argument matchers used in stubbing and verification.
@@ -261,5 +266,108 @@ public final class ArgumentMatchers {
     public static double doubleThat(double min, double max) {
         MatcherContext.addMatcher(new RangeMatcher<>(min, max));
         return 0.0;
+    }
+
+    /**
+     * Captures the argument value for later inspection using a {@link io.github.dallenpyrah.contextualmocker.captors.ContextualArgumentCaptor}.
+     * This method registers the captor's internal matcher and returns a default value
+     * that serves as a placeholder during stubbing or verification.
+     *
+     * <p>Usage example:</p>
+     * <pre>{@code
+     * // Create a captor for String arguments
+     * ContextualArgumentCaptor<String> captor = ContextualArgumentCaptor.forClass(String.class);
+     * 
+     * // Use in stubbing
+     * when(mock.someMethod(capture(captor))).thenReturn("result");
+     * 
+     * // Or use in verification
+     * verify(mock).someMethod(capture(captor));
+     * 
+     * // Retrieve captured values
+     * String capturedValue = captor.getValue();
+     * List<String> allCapturedValues = captor.getAllValues();
+     * }</pre>
+     *
+     * <p>The captor can be used to:</p>
+     * <ul>
+     *   <li>Capture argument values during method invocations</li>
+     *   <li>Access the most recent captured value via {@code getValue()}</li>
+     *   <li>Access all captured values via {@code getAllValues()}</li>
+     *   <li>Use in both stubbing and verification scenarios</li>
+     * </ul>
+     *
+     * @param <T> The type of the argument to capture.
+     * @param captor The {@link io.github.dallenpyrah.contextualmocker.captors.ContextualArgumentCaptor} instance to use for capturing.
+     * @return A default value appropriate for the captured type (null for objects,
+     *         0 for primitives, etc.); the actual capturing logic is handled internally.
+     * @throws IllegalArgumentException if captor is null.
+     */
+    public static <T> T capture(io.github.dallenpyrah.contextualmocker.captors.ContextualArgumentCaptor<T> captor) {
+        if (captor == null) {
+            throw new IllegalArgumentException("Captor cannot be null");
+        }
+        return captor.capture();
+    }
+
+    /**
+     * Captures the argument value for later inspection using a {@link ArgumentCaptor}.
+     * This method registers a capturing matcher and returns a default value
+     * that serves as a placeholder during stubbing or verification.
+     *
+     * <p>Usage example:</p>
+     * <pre>{@code
+     * // Create a captor for String arguments
+     * ArgumentCaptor<String> captor = ArgumentCaptor.forClass(String.class);
+     * 
+     * // Use in stubbing
+     * when(mock.someMethod(capture(captor))).thenReturn("result");
+     * 
+     * // Or use in verification
+     * verify(mock).someMethod(capture(captor));
+     * 
+     * // Retrieve captured values
+     * String capturedValue = captor.getValue();
+     * List<String> allCapturedValues = captor.getAllValues();
+     * }</pre>
+     *
+     * <p>The captor can be used to:</p>
+     * <ul>
+     *   <li>Capture argument values during method invocations</li>
+     *   <li>Access the most recent captured value via {@code getValue()}</li>
+     *   <li>Access all captured values via {@code getAllValues()}</li>
+     *   <li>Use in both stubbing and verification scenarios</li>
+     * </ul>
+     *
+     * @param <T> The type of the argument to capture.
+     * @param captor The {@link ArgumentCaptor} instance to use for capturing.
+     * @return A default value appropriate for the captured type (null for objects,
+     *         0 for primitives, etc.); the actual capturing logic is handled internally.
+     * @throws IllegalArgumentException if captor is null.
+     */
+    public static <T> T capture(ArgumentCaptor<T> captor) {
+        if (captor == null) {
+            throw new IllegalArgumentException("Captor cannot be null");
+        }
+        // Create and register the capturing matcher
+        CapturingMatcher<T> matcher = new CapturingMatcher<>(captor);
+        MatcherContext.addMatcher(matcher);
+        return captor.capture();
+    }
+
+    /**
+     * Registers a capturing argument matcher for use with ContextualArgumentCaptor.
+     * This method is intended for internal use by the ContextualArgumentCaptor class.
+     *
+     * @param <T> The type of the argument.
+     * @param clazz The class of the argument type to capture
+     * @param globalCaptures List to store all captured values
+     * @param contextCaptures Map to store context-specific captured values
+     * @return A placeholder value (null).
+     */
+    @SuppressWarnings("unchecked")
+    public static <T> T captureWith(Class<T> clazz, List<T> globalCaptures, Map<ContextID, List<T>> contextCaptures) {
+        MatcherContext.addMatcher(new CapturingArgumentMatcher<>(clazz, globalCaptures, contextCaptures));
+        return (T) DefaultValueProvider.getDefaultValue(clazz);
     }
 }

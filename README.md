@@ -12,6 +12,7 @@ ContextualMocker tackles these challenges with:
 * **Comprehensive Spy Support:** Partial mocking with real object delegation for legacy code integration.
 * **JUnit 5 Integration:** Automatic dependency injection with `@Mock`, `@Spy`, and `@ContextId` annotations.
 * **Extended Argument Matchers:** Rich set of matchers including `anyString()`, `contains()`, `regex()`, and custom predicates.
+* **ArgumentCaptor Support:** Capture arguments passed to mocked methods for detailed verification and inspection.
 * **Fluent API:** A BDD-style API inspired by common mocking patterns.
 * **Flexible Mocking:** Supports mocking both interfaces and concrete (non-final) classes.
 
@@ -123,6 +124,22 @@ class MyTest {
 }
 ```
 
+**ArgumentCaptor (Capture Method Arguments):**
+```java
+// Create a captor for the argument type
+ArgumentCaptor<String> userIdCaptor = ArgumentCaptor.forClass(String.class);
+
+// Use the captor in verification
+verifyOnce(userService, context, () -> userService.updateUser(userIdCaptor.capture(), any()));
+
+// Access the captured value
+String capturedUserId = userIdCaptor.getValue();
+assertEquals("expected-user-id", capturedUserId);
+
+// For multiple invocations
+List<String> allCapturedIds = userIdCaptor.getAllValues();
+```
+
 **Memory Management:**
 ```java
 // Configure cleanup policies
@@ -174,6 +191,7 @@ This project uses Apache Maven.
 | Spy support (partial mocking)  | **Yes**          | Yes             | No              | Yes             | Yes             |
 | JUnit 5 integration with annotations | **Yes**     | Yes             | No              | No              | Partial         |
 | Extended argument matchers      | **Yes**          | Yes             | Basic           | Yes             | Yes             |
+| ArgumentCaptor support          | **Yes**          | Yes             | No              | Partial         | Partial         |
 | Fluent, BDD-style API           | **Yes**          | Yes             | Partial         | Partial         | Yes             |
 | Stubbing rule expiration (TTL)  | **Yes**          | No              | No              | No              | No              |
 | Designed for parallel/concurrent tests | **Yes**   | No              | No              | No              | Partial         |
@@ -193,6 +211,7 @@ Contributions are welcome! Please read our [Contributing Guide](docs/CONTRIBUTIN
 - [ONBOARDING.md](docs/ONBOARDING.md): Onboarding guide for new engineers and contributors.
 - [CONTRIBUTING.md](docs/CONTRIBUTING.md): Guidelines for contributing to the project.
 - [USAGE.md](USAGE.md): Detailed usage guide with practical examples.
+- [docs/ARGUMENT_CAPTORS.md](docs/ARGUMENT_CAPTORS.md): Comprehensive guide on using ArgumentCaptors.
 - [docs/HOW_IT_WORKS.md](docs/HOW_IT_WORKS.md): Technical walkthrough of the framework.
 - [docs/DESIGN.md](docs/DESIGN.md): In-depth design and architecture documentation.
 - [docs/IMPLEMENTATION_PLAN.md](docs/IMPLEMENTATION_PLAN.md): Implementation phases, test plan, and status.
